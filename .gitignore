@@ -134,6 +134,3 @@ PersianCalendar/release/
 *.hprof
 
 captures/
-screen.png
-.dirac-cache/
-.vscode/
