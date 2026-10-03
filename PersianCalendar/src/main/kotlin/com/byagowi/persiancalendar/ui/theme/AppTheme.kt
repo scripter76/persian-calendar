@@ -46,14 +46,20 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalResources
@@ -72,8 +78,6 @@ import com.byagowi.persiancalendar.BuildConfig
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.STORED_FONT_NAME
 import com.byagowi.persiancalendar.STORED_IMAGE_NAME
-import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_PROCESSED
-import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_RAW
 import com.byagowi.persiancalendar.global.customFontName
 import com.byagowi.persiancalendar.global.customImageName
 import com.byagowi.persiancalendar.global.isBoldFont
@@ -95,6 +99,9 @@ import com.byagowi.persiancalendar.ui.utils.isDynamicGrayscale
 import com.byagowi.persiancalendar.ui.utils.isLight
 import com.byagowi.persiancalendar.utils.debugAssertNotNull
 import java.io.File
+import com.byagowi.persiancalendar.utils.LiquidGlassEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @SuppressLint("ComposeModifierMissing")
 @Composable
@@ -109,7 +116,18 @@ fun AppTheme(content: @Composable () -> Unit) {
         val isRtl =
             language.isLessKnownRtl || language.asSystemLocale().layoutDirection == View.LAYOUT_DIRECTION_RTL
         val context = LocalContext.current
+        val theme = effectiveTheme()
+        val version = liquidGlassWallpaperVersion
+        val wallpaper by produceState<GlassWallpaper?>(null, theme, version) {
+            value = if (theme == Theme.LIQUID_GLASS) withContext(Dispatchers.IO) {
+                val raw = LiquidGlassEngine.loadWallpaper(context)
+                GlassWallpaper(raw, LiquidGlassEngine.stackBlur(raw, 4))
+            } else null
+        }
+        var backdropBounds by remember { mutableStateOf(Rect.Zero) }
+        val backdrop = remember(wallpaper, backdropBounds) { wallpaper?.let { GlassBackdrop(it, backdropBounds) } }
         CompositionLocalProvider(
+            LocalGlassBackdrop provides backdrop,
             LocalContentColor provides contentColor,
             LocalLayoutDirection provides if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
             LocalUriHandler provides remember {
@@ -126,47 +144,17 @@ fun AppTheme(content: @Composable () -> Unit) {
                     .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
                     .clipToBounds()
                     // Don't move this upper to top of the chain so .clipToBounds can be applied to it
-                    .background(appBackground()),
+                    .background(appBackground())
+                    .onGloballyPositioned { backdropBounds = it.boundsInRoot() },
             ) {
-                val theme = effectiveTheme()
                 if (theme == Theme.LIQUID_GLASS) {
-                    val version = liquidGlassWallpaperVersion
-                    val bitmap = remember(version) {
-                        val file = File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED).takeIf { it.exists() }
-                            ?: File(context.filesDir, STORED_LIQUID_GLASS_RAW).takeIf { it.exists() }
-                        if (file != null) BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() else null
-                    }
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.linearGradient(
-                                        0f to Color(0x25FFFFFF),
-                                        0.45f to Color(0x0AFFFFFF),
-                                        1f to Color.Transparent,
-                                        start = Offset(0f, 0f),
-                                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-                                    ),
-                                ),
-                        )
-                    } else {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF243B55), Color(0xFF141E30)),
-                                    ),
-                                ),
-                        )
-                    }
+                    val bitmap = remember(wallpaper) { wallpaper?.raw?.asImageBitmap() }
+                    if (bitmap != null) Image(
+                        bitmap = bitmap,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
                 }
                 val customImageName = customImageName
                 if (customImageName != null && theme != Theme.LIQUID_GLASS) {
@@ -324,8 +312,8 @@ private fun appColorScheme(): ColorScheme {
         surfaceContainerHighest = colorScheme.surfaceContainer,
     )
     if (theme == Theme.LIQUID_GLASS) {
-        val glassSurface = if (isLiquidGlassDark) Color(0x351F232B) else Color(0x40FFFFFF)
-        val glassContainer = if (isLiquidGlassDark) Color(0x45282D37) else Color(0x50FFFFFF)
+        val glassSurface = if (isLiquidGlassDark) Color(0x181F232B) else Color(0x20FFFFFF)
+        val glassContainer = if (isLiquidGlassDark) Color(0x30282D37) else Color(0x38FFFFFF)
         colorScheme = colorScheme.copy(
             surface = glassSurface,
             surfaceContainer = glassContainer,
@@ -335,6 +323,8 @@ private fun appColorScheme(): ColorScheme {
             surfaceContainerHighest = if (isLiquidGlassDark) Color(0x653E4555) else Color(0x75FFFFFF),
             background = Color.Transparent,
             onBackground = if (isLiquidGlassDark) Color.White else Color(0xFF1E2024),
+            onSurface = if (isLiquidGlassDark) Color(0xFFF7F8FA) else Color(0xFF1E2024),
+            onSurfaceVariant = if (isLiquidGlassDark) Color(0xFFDCE1E8) else Color(0xFF434750),
             outline = if (isLiquidGlassDark) Color(0x45FFFFFF) else Color(0x35000000),
             outlineVariant = if (isLiquidGlassDark) Color(0x25FFFFFF) else Color(0x18000000),
         )
@@ -357,7 +347,8 @@ private fun appColorScheme(): ColorScheme {
     }
     return colorScheme.copy(
         background = backgroundColor,
-        onBackground = if (backgroundColor.isLight) DefaultLightColorScheme.onBackground
+        onBackground = if (theme == Theme.LIQUID_GLASS) colorScheme.onBackground
+        else if (backgroundColor.isLight) DefaultLightColorScheme.onBackground
         else DefaultDarkColorScheme.onBackground,
     )
 }

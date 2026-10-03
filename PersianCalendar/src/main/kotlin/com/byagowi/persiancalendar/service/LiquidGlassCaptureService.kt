@@ -3,6 +3,8 @@ package com.byagowi.persiancalendar.service
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -15,11 +17,15 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.view.View
+import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import com.byagowi.persiancalendar.R
+import com.byagowi.persiancalendar.WidgetGlass
 import com.byagowi.persiancalendar.utils.LiquidGlassEngine
+import com.byagowi.persiancalendar.utils.update
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -75,7 +81,16 @@ class LiquidGlassCaptureService : Service() {
             var mediaProjection: MediaProjection? = null
             var virtualDisplay: VirtualDisplay? = null
             var imageReader: ImageReader? = null
+            val widgetManager = AppWidgetManager.getInstance(applicationContext)
+            val widgetIds = widgetManager.getAppWidgetIds(ComponentName(applicationContext, WidgetGlass::class.java))
             try {
+                // Capture the wallpaper below our widgets, avoiding a baked-in copy of old text/cards.
+                if (widgetIds.isNotEmpty()) widgetManager.partiallyUpdateAppWidget(
+                    widgetIds,
+                    RemoteViews(packageName, R.layout.widget_glass).apply {
+                        setViewVisibility(R.id.widget_layout_glass, View.INVISIBLE)
+                    },
+                )
                 // 1. Switch to Home Screen to capture the actual wallpaper
                 val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
@@ -150,6 +165,8 @@ class LiquidGlassCaptureService : Service() {
             } catch (e: Exception) {
                 notifyResult(false)
             } finally {
+                // Restore widgets even if projection permission is revoked or capture fails.
+                if (widgetIds.isNotEmpty()) runCatching { update(applicationContext, false) }
                 runCatching { virtualDisplay?.release() }
                 runCatching { imageReader?.close() }
                 runCatching { mediaProjection?.stop() }

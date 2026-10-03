@@ -8,7 +8,8 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.Rect
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.Shader
 import androidx.core.content.edit
@@ -21,21 +22,15 @@ import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_PROCESSED
 import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_RAW
 import java.io.File
 import java.io.FileOutputStream
+import android.util.LruCache
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * Liquid Glass Rendering Engine
- *
- * Implements optical glassmorphism with:
- * - High-radius stack blur
- * - Surface tension / liquid meniscus highlight curve
- * - Ambient light specular sheen (directional 315°)
- * - Adaptive frosted tint (translucent dark for high contrast on bright wallpapers,
- *   milky frosted for dark wallpapers)
- * - Specular refractive rim border
- */
+/** Wallpaper-backed lens rendering, including refraction, soft diffusion and directional rims. */
 object LiquidGlassEngine {
+    private val widgetCache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
+    }
 
     fun isWallpaperSet(context: Context): Boolean =
         File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED).exists() ||
@@ -291,208 +286,208 @@ object LiquidGlassEngine {
     }
 
     /**
-     * Composites liquid glass effects (frosted diffusion, meniscus curve, specular sheen,
-     * rim highlight) onto the blurred wallpaper.
+     * Samples the wallpaper through a rounded lens. Refraction can sample outside the panel,
+     * retaining the wallpaper's position. Works on Android 6+ and in launcher RemoteViews.
      */
     fun compositeLiquidGlass(
-        blurredBase: Bitmap,
+        rawBase: Bitmap,
         targetWidth: Int,
         targetHeight: Int,
         isDark: Boolean,
+        sourceRect: RectF = RectF(0f, 0f, rawBase.width.toFloat(), rawBase.height.toFloat()),
+        cornerRadii: FloatArray = FloatArray(4) { targetWidth * 26f / 340f },
+        softenedBase: Bitmap? = null,
     ): Bitmap {
+        require(targetWidth > 0 && targetHeight > 0)
+        require(cornerRadii.size == 4)
+        val soft = softenedBase ?: stackBlur(rawBase, 4)
+        val sourcePixels = IntArray(rawBase.width * rawBase.height)
+        rawBase.getPixels(sourcePixels, 0, rawBase.width, 0, 0, rawBase.width, rawBase.height)
+        val softPixels = IntArray(soft.width * soft.height)
+        soft.getPixels(softPixels, 0, soft.width, 0, 0, soft.width, soft.height)
+        val pixels = IntArray(targetWidth * targetHeight)
+        val optics = LiquidGlassOptics(targetWidth.toFloat(), targetHeight.toFloat(), cornerRadii)
+        val sample = FloatArray(3)
+        val scaleX = sourceRect.width() / targetWidth
+        val scaleY = sourceRect.height() / targetHeight
+        for (y in 0 until targetHeight) for (x in 0 until targetWidth) {
+            optics.sample(x + .5f, y + .5f, sample)
+            val sx = sourceRect.left + sample[0] * scaleX - .5f
+            val sy = sourceRect.top + sample[1] * scaleY - .5f
+            val clear = sampleBilinear(sourcePixels, rawBase.width, rawBase.height, sx, sy)
+            val diffuse = sampleBilinear(
+                softPixels, soft.width, soft.height,
+                (sx + .5f) * soft.width / rawBase.width - .5f,
+                (sy + .5f) * soft.height / rawBase.height - .5f,
+            )
+            // Preserve detail in the body, and even more in the refractive bevel.
+            pixels[y * targetWidth + x] = mixColor(clear, diffuse, .48f * (1f - sample[2] * .7f))
+        }
         val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        output.setPixels(pixels, 0, targetWidth, 0, 0, targetWidth, targetHeight)
         val canvas = Canvas(output)
         val w = targetWidth.toFloat()
         val h = targetHeight.toFloat()
-
-        // 1. Draw blurred base (scaled to fit)
-        val srcRect = Rect(0, 0, blurredBase.width, blurredBase.height)
-        val dstRect = Rect(0, 0, targetWidth, targetHeight)
-        canvas.drawBitmap(blurredBase, srcRect, dstRect, null)
-
-        // 2. Adaptive frosted tint
-        val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (isDark) {
-                // Milky white frosted glass on dark wallpaper
-                Color.argb(35, 255, 255, 255)
-            } else {
-                // Smoky translucent dark glass on light wallpaper for high contrast
-                Color.argb(85, 18, 20, 26)
-            }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val path = Path().apply {
+            addRoundRect(RectF(0f, 0f, w, h), androidRadii(cornerRadii, w, h), Path.Direction.CW)
         }
-        canvas.drawRect(0f, 0f, w, h, tintPaint)
-
-        // 3. Specular ambient sheen from top-left (315° directional light source)
-        val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                0f, 0f, w * 0.85f, h * 0.65f,
-                intArrayOf(
-                    Color.argb(55, 255, 255, 255),
-                    Color.argb(18, 255, 255, 255),
-                    Color.TRANSPARENT,
-                ),
-                floatArrayOf(0f, 0.4f, 1f),
-                Shader.TileMode.CLAMP,
+        paint.color = if (isDark) Color.argb(20, 14, 18, 24) else Color.argb(28, 255, 255, 255)
+        canvas.drawPath(path, paint)
+        paint.shader = LinearGradient(
+            0f, 0f, w, h,
+            intArrayOf(Color.argb(24, 255, 255, 255), Color.TRANSPARENT, Color.argb(8, 255, 255, 255)),
+            floatArrayOf(0f, .45f, 1f), Shader.TileMode.CLAMP,
+        )
+        canvas.drawPath(path, paint)
+        val unit = (w / 340f).coerceAtLeast(.5f)
+        val inset = min(unit * .6f, min(w, h) * .25f)
+        val rimPath = Path().apply {
+            addRoundRect(
+                RectF(inset, inset, w - inset, h - inset),
+                androidRadii(cornerRadii.map { (it - inset).coerceAtLeast(0f) }.toFloatArray(), w, h),
+                Path.Direction.CW,
             )
         }
-        canvas.drawRect(0f, 0f, w, h, sheenPaint)
-
-        // 4. Liquid meniscus highlight curve (simulates fluid surface tension on top third)
-        val meniscusPath = Path().apply {
-            moveTo(0f, 0f)
-            lineTo(w, 0f)
-            lineTo(w, h * 0.22f)
-            quadTo(w * 0.5f, h * 0.36f, 0f, h * 0.22f)
-            close()
-        }
-        val meniscusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                0f, 0f, 0f, h * 0.36f,
-                Color.argb(45, 255, 255, 255),
-                Color.TRANSPARENT,
-                Shader.TileMode.CLAMP,
-            )
-        }
-        canvas.drawPath(meniscusPath, meniscusPaint)
-
-        // 5. Specular refractive outer rim stroke
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 3f
-            shader = LinearGradient(
-                0f, 0f, w, h,
-                intArrayOf(
-                    Color.argb(110, 255, 255, 255),
-                    Color.argb(25, 255, 255, 255),
-                    Color.argb(35, 0, 0, 0),
-                ),
-                floatArrayOf(0f, 0.5f, 1f),
-                Shader.TileMode.CLAMP,
-            )
-        }
-        val bounds = RectF(1.5f, 1.5f, w - 1.5f, h - 1.5f)
-        canvas.drawRoundRect(bounds, 32f, 32f, strokePaint)
-
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = unit * 1.2f
+        paint.shader = LinearGradient(
+            0f, 0f, w, h,
+            intArrayOf(
+                Color.argb(190, 255, 255, 255), Color.argb(65, 255, 255, 255),
+                Color.argb(18, 255, 255, 255), Color.argb(100, 255, 255, 255),
+            ), floatArrayOf(0f, .28f, .65f, 1f), Shader.TileMode.CLAMP,
+        )
+        canvas.drawPath(rimPath, paint)
+        paint.strokeWidth = unit * 2.5f
+        paint.shader = LinearGradient(0f, 0f, 0f, h, Color.TRANSPARENT, Color.argb(24, 0, 0, 0), Shader.TileMode.CLAMP)
+        canvas.drawPath(rimPath, paint)
+        paint.shader = null
+        paint.style = Paint.Style.FILL
+        // Software clipPath is not antialiased; use a full-size alpha mask for smooth widget corners.
+        val mask = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        Canvas(mask).drawPath(path, paint.apply { color = Color.WHITE })
+        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+        canvas.drawBitmap(mask, 0f, 0f, paint)
+        mask.recycle()
+        if (softenedBase == null && soft !== rawBase) soft.recycle()
         return output
     }
 
-    /**
-     * Ingests, processes, and persists the raw wallpaper bitmap.
-     */
+    private fun androidRadii(radii: FloatArray, width: Float, height: Float): FloatArray =
+        FloatArray(8) { radii[it / 2].coerceIn(0f, min(width, height) / 2f) }
+
+    private fun mixColor(a: Int, b: Int, amount: Float): Int = Color.rgb(
+        (Color.red(a) + (Color.red(b) - Color.red(a)) * amount).toInt(),
+        (Color.green(a) + (Color.green(b) - Color.green(a)) * amount).toInt(),
+        (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * amount).toInt(),
+    )
+
+    private fun sampleBilinear(pixels: IntArray, width: Int, height: Int, x: Float, y: Float): Int {
+        val sx = x.coerceIn(0f, (width - 1).toFloat())
+        val sy = y.coerceIn(0f, (height - 1).toFloat())
+        val x0 = sx.toInt()
+        val y0 = sy.toInt()
+        val x1 = min(x0 + 1, width - 1)
+        val y1 = min(y0 + 1, height - 1)
+        return mixColor(
+            mixColor(pixels[y0 * width + x0], pixels[y0 * width + x1], sx - x0),
+            mixColor(pixels[y1 * width + x0], pixels[y1 * width + x1], sx - x0), sy - y0,
+        )
+    }
+
+    /** Bounded software bitmap; the app always uses the raw full wallpaper, never a widget crop. */
+    fun loadWallpaper(context: Context): Bitmap {
+        val file = File(context.filesDir, STORED_LIQUID_GLASS_RAW)
+        if (file.exists()) {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, options)
+            options.inSampleSize = 1
+            while (options.outWidth / options.inSampleSize > 960) options.inSampleSize *= 2
+            options.inJustDecodeBounds = false
+            BitmapFactory.decodeFile(file.absolutePath, options)?.let { return it }
+        }
+        val fallback = BitmapFactory.decodeResource(
+            context.resources, com.byagowi.persiancalendar.R.drawable.bg_glass_ios_clear,
+            BitmapFactory.Options().apply { inScaled = false },
+        )
+        val bitmap = Bitmap.createScaledBitmap(fallback, 640, (640f * fallback.height / fallback.width).toInt().coerceAtLeast(1), true)
+            .copy(Bitmap.Config.ARGB_8888, true)
+        fallback.recycle()
+        // A light neutral default matches the light app theme before a wallpaper is selected.
+        Canvas(bitmap).drawColor(Color.argb(100, 255, 255, 255))
+        return bitmap
+    }
+
     fun processAndSave(context: Context, rawBitmap: Bitmap) {
-        val rawFile = File(context.filesDir, STORED_LIQUID_GLASS_RAW)
-        FileOutputStream(rawFile).use { out ->
-            rawBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        FileOutputStream(File(context.filesDir, STORED_LIQUID_GLASS_RAW)).use {
+            rawBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
-
-        // 1. Analyze luminance
-        val luminance = calculateLuminance(rawBitmap)
-        val isDark = luminance < 0.48f
-
-        // 2. Downscale for fast & smooth StackBlur
-        val targetBlurWidth = 540
-        val targetBlurHeight = (targetBlurWidth * (rawBitmap.height.toFloat() / rawBitmap.width)).toInt()
-        val scaled = Bitmap.createScaledBitmap(rawBitmap, targetBlurWidth, targetBlurHeight, true)
-        val blurred = stackBlur(scaled, 26)
-
-        // Save full screen master blur for screen-accurate widget cropping
-        val masterBlurFile = File(context.filesDir, STORED_LIQUID_GLASS_MASTER_BLUR)
-        FileOutputStream(masterBlurFile).use { out ->
-            blurred.compress(Bitmap.CompressFormat.PNG, 90, out)
+        val isDark = calculateLuminance(rawBitmap) < .48f
+        val blurWidth = min(640, rawBitmap.width)
+        val scaled = Bitmap.createScaledBitmap(
+            rawBitmap, blurWidth, (blurWidth * rawBitmap.height.toFloat() / rawBitmap.width).toInt().coerceAtLeast(1), true,
+        )
+        val blurred = stackBlur(scaled, 4)
+        FileOutputStream(File(context.filesDir, STORED_LIQUID_GLASS_MASTER_BLUR)).use {
+            blurred.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
-
-        // 3. Update preferences
+        blurred.recycle()
+        if (scaled !== rawBitmap) scaled.recycle()
+        widgetCache.evictAll()
         context.preferences.edit {
             putBoolean(PREF_LIQUID_GLASS_IS_DARK, isDark)
             putLong(PREF_LIQUID_GLASS_UPDATED_AT, System.currentTimeMillis())
         }
-
-        // 4. Pre-generate default crop
-        val defaultYPos = context.preferences.getInt(PREF_WIDGET_GLASS_Y_POS, DEFAULT_WIDGET_GLASS_Y_POS).toFloat()
-        cropAndSaveWidgetLiquidGlass(context, defaultYPos, blurred, isDark)
-
-        // 5. Update widgets
-        runCatching {
-            update(context, false)
-        }
+        cropAndSaveWidgetLiquidGlass(context)
+        runCatching { update(context, false) }
     }
 
-    /**
-     * Crops the exact screen portion corresponding to the widget's vertical position
-     * on the launcher and composites liquid glass optical shading.
-     */
     fun cropWidgetLiquidGlass(
         context: Context,
         yPercent: Float = DEFAULT_WIDGET_GLASS_Y_POS.toFloat(),
         targetWidth: Int = 800,
-    ): Bitmap? {
-        val masterFile = File(context.filesDir, STORED_LIQUID_GLASS_MASTER_BLUR).takeIf { it.exists() }
-            ?: File(context.filesDir, STORED_LIQUID_GLASS_RAW).takeIf { it.exists() }
-            ?: return null
-
-        val masterBitmap = BitmapFactory.decodeFile(masterFile.absolutePath) ?: return null
-        val screenW = masterBitmap.width
-        val screenH = masterBitmap.height
-        val isDark = context.preferences.getBoolean(PREF_LIQUID_GLASS_IS_DARK, false)
-
-        // 4x2 widget width spans ~92% of screen width (centered horizontally)
-        val cropW = (screenW * 0.92f).toInt().coerceAtLeast(10)
-        val cropH = (cropW * (140f / 340f)).toInt().coerceAtLeast(10)
-        val cropX = ((screenW - cropW) / 2).coerceAtLeast(0)
-
-        // Vertical position:
-        // 0% -> top of screen (5% from status bar)
-        // 100% -> bottom of screen (8% above nav bar)
-        val minY = (screenH * 0.05f).toInt()
-        val maxY = (screenH - cropH - (screenH * 0.08f)).toInt().coerceAtLeast(minY)
-        val clampedPercent = (yPercent / 100f).coerceIn(0f, 1f)
-        val cropY = (minY + clampedPercent * (maxY - minY)).toInt().coerceIn(0, (screenH - cropH).coerceAtLeast(0))
-
-        val safeCropW = cropW.coerceAtMost(screenW - cropX)
-        val safeCropH = cropH.coerceAtMost(screenH - cropY)
-
-        val croppedSubBitmap = Bitmap.createBitmap(masterBitmap, cropX, cropY, safeCropW, safeCropH)
-        val targetHeight = (targetWidth * (140f / 340f)).toInt()
-        return compositeLiquidGlass(croppedSubBitmap, targetWidth, targetHeight, isDark)
+        targetHeight: Int = (targetWidth * 140f / 340f).toInt().coerceAtLeast(1),
+    ): Bitmap {
+        val rawFile = File(context.filesDir, STORED_LIQUID_GLASS_RAW)
+        val percent = yPercent.coerceIn(0f, 100f)
+        val key = "${rawFile.absolutePath}:${rawFile.lastModified()}:$percent:$targetWidth:$targetHeight"
+        widgetCache.get(key)?.let { return it }
+        // Reading raw also upgrades old captures with the former heavy blur, without recapture.
+        val wallpaper = loadWallpaper(context)
+        val screenW = wallpaper.width.toFloat()
+        val screenH = wallpaper.height.toFloat()
+        val cropW = min(screenW * .92f, screenH * targetWidth / targetHeight)
+        val cropH = cropW * targetHeight / targetWidth
+        val cropX = (screenW - cropW) / 2f
+        val minY = min(screenH * .05f, screenH - cropH)
+        val maxY = (screenH - cropH - screenH * .08f).coerceAtLeast(minY)
+        val cropY = minY + percent / 100f * (maxY - minY)
+        val sourceRect = RectF(cropX, cropY, cropX + cropW, cropY + cropH)
+        val crop = Bitmap.createBitmap(
+            wallpaper, cropX.toInt(), cropY.toInt(), cropW.toInt().coerceIn(1, wallpaper.width - cropX.toInt()), cropH.toInt().coerceIn(1, wallpaper.height - cropY.toInt()),
+        )
+        val isDark = calculateLuminance(crop) < .48f
+        if (crop !== wallpaper) crop.recycle()
+        val result = compositeLiquidGlass(wallpaper, targetWidth, targetHeight, isDark, sourceRect)
+        wallpaper.recycle()
+        widgetCache.put(key, result)
+        return result
     }
 
     fun cropAndSaveWidgetLiquidGlass(
         context: Context,
-        yPercent: Float = DEFAULT_WIDGET_GLASS_Y_POS.toFloat(),
-        blurredMaster: Bitmap? = null,
-        isDarkParam: Boolean? = null,
-    ): Bitmap? {
-        val bitmap = if (blurredMaster != null) {
-            val isDark = isDarkParam ?: context.preferences.getBoolean(PREF_LIQUID_GLASS_IS_DARK, false)
-            val screenW = blurredMaster.width
-            val screenH = blurredMaster.height
-            val cropW = (screenW * 0.92f).toInt().coerceAtLeast(10)
-            val cropH = (cropW * (140f / 340f)).toInt().coerceAtLeast(10)
-            val cropX = ((screenW - cropW) / 2).coerceAtLeast(0)
-
-            val minY = (screenH * 0.05f).toInt()
-            val maxY = (screenH - cropH - (screenH * 0.08f)).toInt().coerceAtLeast(minY)
-            val clampedPercent = (yPercent / 100f).coerceIn(0f, 1f)
-            val cropY = (minY + clampedPercent * (maxY - minY)).toInt().coerceIn(0, (screenH - cropH).coerceAtLeast(0))
-
-            val safeCropW = cropW.coerceAtMost(screenW - cropX)
-            val safeCropH = cropH.coerceAtMost(screenH - cropY)
-            val croppedSubBitmap = Bitmap.createBitmap(blurredMaster, cropX, cropY, safeCropW, safeCropH)
-            compositeLiquidGlass(croppedSubBitmap, 800, (800 * 140f / 340f).toInt(), isDark)
-        } else {
-            cropWidgetLiquidGlass(context, yPercent)
-        }
-
-        if (bitmap != null) {
-            val processedFile = File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED)
-            FileOutputStream(processedFile).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
-            }
+        yPercent: Float = context.preferences.getInt(PREF_WIDGET_GLASS_Y_POS, DEFAULT_WIDGET_GLASS_Y_POS).toFloat(),
+    ): Bitmap {
+        val bitmap = cropWidgetLiquidGlass(context, yPercent)
+        FileOutputStream(File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED)).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
         return bitmap
     }
 
     fun removeWallpaper(context: Context) {
+        widgetCache.evictAll()
         File(context.filesDir, STORED_LIQUID_GLASS_RAW).delete()
         File(context.filesDir, STORED_LIQUID_GLASS_MASTER_BLUR).delete()
         File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED).delete()

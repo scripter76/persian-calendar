@@ -13,7 +13,6 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -70,8 +69,6 @@ import com.byagowi.persiancalendar.PREF_WIDGET_GLASS_THEME
 import com.byagowi.persiancalendar.PREF_WIDGET_GLASS_LANGUAGE
 import com.byagowi.persiancalendar.PREF_WIDGET_GLASS_Y_POS
 import com.byagowi.persiancalendar.DEFAULT_WIDGET_GLASS_Y_POS
-import com.byagowi.persiancalendar.PREF_LIQUID_GLASS_IS_DARK
-import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_PROCESSED
 import java.io.File
 import com.byagowi.persiancalendar.PREF_WIDGET_TEXT_SCALE
 import com.byagowi.persiancalendar.R
@@ -1490,6 +1487,7 @@ fun createGlassRemoteViews(
 ): RemoteViews {
     val scale = preferences.getWidgetTextScale(widgetId)
     val remoteViews = RemoteViews(context.packageName, R.layout.widget_glass)
+    remoteViews.setViewVisibility(R.id.widget_layout_glass, View.VISIBLE)
 
     val themeKey = PREF_WIDGET_GLASS_THEME + widgetId
     val themeName = preferences.getString(themeKey, null)
@@ -1512,43 +1510,41 @@ fun createGlassRemoteViews(
     }
     val localizedRes = localizedContext.resources
 
-    val isLiquidDark = preferences.getBoolean(PREF_LIQUID_GLASS_IS_DARK, false)
-    if (theme == GlassWidgetTheme.LIQUID_GLASS) {
-        val yKey = PREF_WIDGET_GLASS_Y_POS + widgetId
-        val yPos = preferences.getInt(yKey, -1).takeIf { it >= 0 }
+    val isLiquid = theme == GlassWidgetTheme.LIQUID_GLASS
+    val liquidBitmap = if (isLiquid) {
+        val yPos = preferences.getInt(PREF_WIDGET_GLASS_Y_POS + widgetId, -1).takeIf { it >= 0 }
             ?: preferences.getInt(PREF_WIDGET_GLASS_Y_POS, DEFAULT_WIDGET_GLASS_Y_POS)
-        val bitmap = LiquidGlassEngine.cropWidgetLiquidGlass(context, yPos.toFloat())
-            ?: run {
-                val processedFile = File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED)
-                if (processedFile.exists()) {
-                    runCatching { BitmapFactory.decodeFile(processedFile.absolutePath) }.getOrNull()
-                } else null
-            }
+        val ratio = size?.let { it.height.value / it.width.value } ?: (140f / 340f)
+        LiquidGlassEngine.cropWidgetLiquidGlass(context, yPos.toFloat(), 800, (800 * ratio).toInt().coerceIn(120, 1000))
+    } else null
+    val isLiquidDark = liquidBitmap?.let { LiquidGlassEngine.calculateLuminance(it) < .48f } ?: false
+    val primaryText = if (isLiquid && !isLiquidDark) 0xFF20242B.toInt() else 0xFFFFFFFF.toInt()
+    val secondaryText = if (isLiquid) {
+        if (isLiquidDark) 0xFFE1E6ED.toInt() else 0xFF454C56.toInt()
+    } else 0xFFDCC9F5.toInt()
+    val accentText = if (isLiquid) {
+        if (isLiquidDark) 0xFFC3DEFF.toInt() else 0xFF0065D0.toInt()
+    } else 0xFFE0C6F7.toInt()
+    if (liquidBitmap != null) remoteViews.setImageViewBitmap(R.id.widget_glass_background, liquidBitmap)
+    else remoteViews.setImageViewResource(R.id.widget_glass_background, theme.backgroundDrawable)
+    remoteViews.setViewVisibility(R.id.widget_glass_outer_border, if (isLiquid) View.GONE else View.VISIBLE)
+    remoteViews.setInt(R.id.widget_layout_glass, "setBackgroundResource", if (isLiquid) R.drawable.bg_widget_clip_liquid else R.drawable.bg_widget_clip)
+    remoteViews.setViewVisibility(R.id.glass_clock_underline, if (isLiquid) View.GONE else View.VISIBLE)
+    remoteViews.setTextColor(R.id.glass_clock, if (isLiquid) primaryText else localizedContext.getColor(R.color.glass_time))
+    remoteViews.setTextColor(R.id.glass_clock_ampm, if (isLiquid) secondaryText else localizedContext.getColor(R.color.glass_time_ampm))
 
-        if (bitmap != null) {
-            remoteViews.setImageViewBitmap(R.id.widget_glass_background, bitmap)
-        } else {
-            remoteViews.setImageViewResource(R.id.widget_glass_background, theme.backgroundDrawable)
-        }
-    } else {
-        remoteViews.setImageViewResource(R.id.widget_glass_background, theme.backgroundDrawable)
-    }
-
-    val clockCardBg = if (theme == GlassWidgetTheme.LIQUID_GLASS) {
-        if (isLiquidDark) R.drawable.bg_glass_card_liquid else R.drawable.bg_glass_card_liquid_dark
+    val clockCardBg = if (isLiquid) {
+        if (isLiquidDark) R.drawable.bg_glass_card_liquid_dark else R.drawable.bg_glass_card_liquid
     } else theme.cardBackgroundDrawable
     remoteViews.setInt(R.id.glass_clock_card, "setBackgroundResource", clockCardBg)
-
     val calendarCardBg = when {
-        theme == GlassWidgetTheme.LIQUID_GLASS ->
-            if (isLiquidDark) R.drawable.bg_glass_card_liquid else R.drawable.bg_glass_card_liquid_dark
+        isLiquid -> clockCardBg
         theme.isDark -> R.drawable.bg_glass_card_dark
         else -> R.drawable.bg_glass_card_sm
     }
     remoteViews.setInt(R.id.glass_calendar_card, "setBackgroundResource", calendarCardBg)
-
-    val bottomBarBg = if (theme == GlassWidgetTheme.LIQUID_GLASS) {
-        if (isLiquidDark) R.drawable.bg_glass_bottom_bar_liquid else R.drawable.bg_glass_bottom_bar_liquid_dark
+    val bottomBarBg = if (isLiquid) {
+        if (isLiquidDark) R.drawable.bg_glass_bottom_bar_liquid_dark else R.drawable.bg_glass_bottom_bar_liquid
     } else theme.bottomBarBackgroundDrawable
     remoteViews.setInt(R.id.glass_bottom_bar_container, "setBackgroundResource", bottomBarBg)
 
@@ -1638,7 +1634,7 @@ fun createGlassRemoteViews(
         context = localizedContext,
         text = displayCity,
         textSizeSp = 9.5f * scale,
-        textColor = 0xFFE0C6F7.toInt(),
+        textColor = accentText,
         isBold = false,
         customFontFile = customFontFile,
     )
@@ -1649,7 +1645,7 @@ fun createGlassRemoteViews(
         context = localizedContext,
         text = horizonString,
         textSizeSp = 8f * scale,
-        textColor = 0xB3DCC9F5.toInt(),
+        textColor = if (isLiquid) secondaryText else 0xB3DCC9F5.toInt(),
         isBold = false,
         customFontFile = customFontFile,
     )
@@ -1660,7 +1656,7 @@ fun createGlassRemoteViews(
         context = localizedContext,
         text = fullDateString,
         textSizeSp = 9.5f * scale,
-        textColor = 0xE6FFFFFF.toInt(),
+        textColor = if (isLiquid) primaryText else 0xE6FFFFFF.toInt(),
         isBold = false,
         customFontFile = customFontFile,
     )
@@ -1670,7 +1666,7 @@ fun createGlassRemoteViews(
         context = localizedContext,
         text = numFmt.format(date.dayOfMonth),
         textSizeSp = 15f * scale,
-        textColor = 0xFFFFFFFF.toInt(),
+        textColor = primaryText,
         isBold = true,
         customFontFile = customFontFile,
     )
@@ -1680,7 +1676,7 @@ fun createGlassRemoteViews(
         context = localizedContext,
         text = glassMonth,
         textSizeSp = 8.5f * scale,
-        textColor = 0xFFE0C6F7.toInt(),
+        textColor = accentText,
         isBold = false,
         customFontFile = customFontFile,
     )
@@ -1690,7 +1686,7 @@ fun createGlassRemoteViews(
         context = localizedContext,
         text = numFmt.format(date.year),
         textSizeSp = 7.5f * scale,
-        textColor = 0xCCFFFFFF.toInt(),
+        textColor = if (isLiquid) secondaryText else 0xCCFFFFFF.toInt(),
         isBold = false,
         customFontFile = customFontFile,
     )
@@ -1729,7 +1725,7 @@ fun createGlassRemoteViews(
         context = localizedContext,
         text = countdownText,
         textSizeSp = 9.5f * scale,
-        textColor = 0xFFFFFFFF.toInt(),
+        textColor = primaryText,
         isBold = true,
         customFontFile = customFontFile,
     )
@@ -1739,7 +1735,7 @@ fun createGlassRemoteViews(
         val isActive = i == nextIndex
         val titleViewId = timeTitleIds[i]
         val titleText = localizedContext.getString(prayTime.stringRes)
-        val titleColor = if (isActive) 0xFFFFFFFF.toInt() else 0xFFDCC9F5.toInt()
+        val titleColor = if (isActive) primaryText else secondaryText
         val titleBmp = WidgetGlassFontHelper.createTextBitmap(
             context = localizedContext,
             text = titleText,
@@ -1752,7 +1748,7 @@ fun createGlassRemoteViews(
 
         val (h, m) = prayClock.toHoursAndMinutesPair()
         val valText = String.format(Locale.ENGLISH, "%02d:%02d", h, m)
-        val valColor = if (isActive) 0xFFFFFFFF.toInt() else 0xFFFAFAFC.toInt()
+        val valColor = if (isLiquid || isActive) primaryText else 0xFFFAFAFC.toInt()
         val valBmp = WidgetGlassFontHelper.createTextBitmap(
             context = localizedContext,
             text = valText,
@@ -1770,18 +1766,24 @@ fun createGlassRemoteViews(
     remoteViews.setProgressBar(R.id.glass_progress_bar, 1000, progressPercent, false)
 
     iconBadgeIds.forEachIndexed { i, id ->
-        val badgeBg = if (i == nextIndex) R.drawable.bg_glass_icon_badge_active else R.drawable.bg_glass_icon_badge
+        val badgeBg = if (isLiquid) {
+            if (i == nextIndex) R.drawable.bg_glass_active_slot_liquid else R.drawable.bg_glass_icon_badge_liquid
+        } else if (i == nextIndex) R.drawable.bg_glass_icon_badge_active else R.drawable.bg_glass_icon_badge
+        remoteViews.setInt(id, "setColorFilter", if (isLiquid) accentText else localizedContext.getColor(R.color.glass_icon_tint))
         remoteViews.setInt(id, "setBackgroundResource", badgeBg)
     }
 
     slotIds.forEachIndexed { i, id ->
         if (i == nextIndex) {
-            remoteViews.setInt(id, "setBackgroundResource", R.drawable.bg_glass_active_slot)
+            remoteViews.setInt(id, "setBackgroundResource", if (isLiquid) R.drawable.bg_glass_active_slot_liquid else R.drawable.bg_glass_active_slot)
         } else {
             remoteViews.setInt(id, "setBackgroundResource", 0)
         }
     }
 
+    listOf(R.id.glass_location_icon, R.id.glass_sparkle_icon, R.id.glass_calendar_icon).forEach {
+        remoteViews.setInt(it, "setColorFilter", if (isLiquid) accentText else localizedContext.getColor(R.color.glass_icon_tint))
+    }
     remoteViews.setViewVisibility(R.id.glass_bottom_bar_container, View.VISIBLE)
 
     remoteViews.setOnClickPendingIntent(R.id.widget_layout_glass, context.launchAppPendingIntent())
