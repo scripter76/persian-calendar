@@ -26,12 +26,14 @@ import com.byagowi.persiancalendar.PREF_SELECTED_WIDGET_TEXT_COLOR
 import com.byagowi.persiancalendar.PREF_WHAT_TO_SHOW_WIDGETS
 import com.byagowi.persiancalendar.PREF_WIDGETS_PREFER_SYSTEM_COLORS
 import com.byagowi.persiancalendar.PREF_WIDGET_CLOCK
+import com.byagowi.persiancalendar.PREF_WIDGET_CLOCK_ZERO_PADDING
 import com.byagowi.persiancalendar.PREF_WIDGET_IN_24
 import com.byagowi.persiancalendar.PREF_WIDGET_TRANSPARENCY
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.entities.Calendar
 import com.byagowi.persiancalendar.global.clockIn24
 import com.byagowi.persiancalendar.global.isCenterAlignWidgets
+import com.byagowi.persiancalendar.global.isClockZeroPadding
 import com.byagowi.persiancalendar.global.isForcedIranTimeEnabled
 import com.byagowi.persiancalendar.global.isWidgetClock
 import com.byagowi.persiancalendar.global.language
@@ -53,6 +55,7 @@ import java.util.TimeZone
 fun WidgetSettings(modifier: Modifier = Modifier) {
     Column(modifier) {
         WidgetColoringSettings()
+        GlassWidgetThemeSetting()
         SettingsSwitch(
             key = PREF_NUMERICAL_DATE_PREFERRED,
             value = numericalDatePreferred,
@@ -70,6 +73,12 @@ fun WidgetSettings(modifier: Modifier = Modifier) {
             value = clockIn24,
             title = stringResource(R.string.clock_in_24),
             summary = stringResource(R.string.showing_clock_in_24),
+        )
+        SettingsSwitch(
+            key = PREF_WIDGET_CLOCK_ZERO_PADDING,
+            value = isClockZeroPadding,
+            title = stringResource(R.string.clock_zero_padding),
+            summary = stringResource(R.string.showing_clock_zero_padding),
         )
         SettingsSwitch(
             key = PREF_CENTER_ALIGN_WIDGETS,

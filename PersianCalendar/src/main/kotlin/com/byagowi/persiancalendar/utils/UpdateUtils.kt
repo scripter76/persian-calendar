@@ -1,5 +1,7 @@
 package com.byagowi.persiancalendar.utils
 
+import com.byagowi.persiancalendar.tehranCoordinates
+
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -11,6 +13,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -63,12 +66,20 @@ import com.byagowi.persiancalendar.PREF_SELECTED_DATE_AGE_WIDGET_START
 import com.byagowi.persiancalendar.PREF_SELECTED_WIDGET_BACKGROUND_COLOR
 import com.byagowi.persiancalendar.PREF_SELECTED_WIDGET_TEXT_COLOR
 import com.byagowi.persiancalendar.PREF_TITLE_AGE_WIDGET
+import com.byagowi.persiancalendar.PREF_WIDGET_GLASS_THEME
+import com.byagowi.persiancalendar.PREF_WIDGET_GLASS_LANGUAGE
+import com.byagowi.persiancalendar.PREF_WIDGET_GLASS_Y_POS
+import com.byagowi.persiancalendar.DEFAULT_WIDGET_GLASS_Y_POS
+import com.byagowi.persiancalendar.PREF_LIQUID_GLASS_IS_DARK
+import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_PROCESSED
+import java.io.File
 import com.byagowi.persiancalendar.PREF_WIDGET_TEXT_SCALE
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.Widget1x1
 import com.byagowi.persiancalendar.Widget2x2
 import com.byagowi.persiancalendar.Widget4x1
 import com.byagowi.persiancalendar.Widget4x2
+import com.byagowi.persiancalendar.WidgetGlass
 import com.byagowi.persiancalendar.WidgetMap
 import com.byagowi.persiancalendar.WidgetMonth
 import com.byagowi.persiancalendar.WidgetMonthView
@@ -81,6 +92,8 @@ import com.byagowi.persiancalendar.entities.CalendarEvent
 import com.byagowi.persiancalendar.entities.Clock
 import com.byagowi.persiancalendar.entities.DeviceCalendarEventsStore
 import com.byagowi.persiancalendar.entities.EventsStore
+import com.byagowi.persiancalendar.entities.GlassWidgetTheme
+import com.byagowi.persiancalendar.entities.GlassWidgetLanguage
 import com.byagowi.persiancalendar.entities.Jdn
 import com.byagowi.persiancalendar.entities.Language
 import com.byagowi.persiancalendar.entities.Numeral
@@ -94,6 +107,7 @@ import com.byagowi.persiancalendar.global.customFontName
 import com.byagowi.persiancalendar.global.eventsRepository
 import com.byagowi.persiancalendar.global.isBoldFont
 import com.byagowi.persiancalendar.global.isCenterAlignWidgets
+import com.byagowi.persiancalendar.global.isClockZeroPadding
 import com.byagowi.persiancalendar.global.isDynamicIconEnabled
 import com.byagowi.persiancalendar.global.isDynamicIconEverEnabled
 import com.byagowi.persiancalendar.global.isForcedIranTimeEnabled
@@ -134,16 +148,25 @@ import com.byagowi.persiancalendar.ui.map.MapType
 import com.byagowi.persiancalendar.ui.resumeToken
 import com.byagowi.persiancalendar.ui.settings.agewidget.WidgetAgeConfigureActivity
 import com.byagowi.persiancalendar.ui.theme.resolveCustomFontPath
+import com.byagowi.persiancalendar.ui.theme.resolveTypeface
 import com.byagowi.persiancalendar.ui.utils.AppBlendAlpha
 import com.byagowi.persiancalendar.ui.utils.dp
 import com.byagowi.persiancalendar.ui.utils.isLandscape
 import com.byagowi.persiancalendar.ui.utils.isRtl
 import com.byagowi.persiancalendar.ui.utils.isSystemInDarkTheme
+import com.byagowi.persiancalendar.DEFAULT_CITY
+import com.byagowi.persiancalendar.PREF_GEOCODED_CITYNAME
+import com.byagowi.persiancalendar.PREF_SELECTED_LOCATION
+import com.byagowi.persiancalendar.generated.citiesStore
 import io.github.persiancalendar.calendar.AbstractDate
+import io.github.persiancalendar.calendar.CivilDate
+import io.github.persiancalendar.calendar.IslamicDate
+import io.github.persiancalendar.calendar.PersianDate
 import io.github.persiancalendar.praytimes.Coordinates
 import io.github.persiancalendar.praytimes.PrayTimes
 import java.lang.ref.WeakReference
 import java.util.Date
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -262,6 +285,11 @@ fun update(context: Context, updateDate: Boolean) {
         }
         updateFromRemoteViews<Widget4x2>(context, now) { size, widgetId ->
             create4x2RemoteViews(
+                context, size, jdn, date, clock, prayTimes, preferences, widgetId,
+            )
+        }
+        updateFromRemoteViews<WidgetGlass>(context, now) { size, widgetId ->
+            createGlassRemoteViews(
                 context, size, jdn, date, clock, prayTimes, preferences, widgetId,
             )
         }
@@ -513,6 +541,7 @@ fun createSunViewRemoteViews(
     )
     val width = size?.width?.roundToPx(context.resources) ?: 250
     val height = size?.height?.roundToPx(context.resources) ?: 250
+    val customFontFile = if (customFontName != null) resolveCustomFontPath(context) else null
     val sunView = SunViewDraw(
         resources = context.resources,
         prayTimes = prayTimes,
@@ -520,7 +549,7 @@ fun createSunViewRemoteViews(
         width = width,
         height = height - (4 * context.resources.dp).roundToInt(),
         timeInMillis = now,
-        typeface = null,
+        typeface = resolveTypeface(context, customFontFile, isBoldFont),
         isRtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL,
     )
     remoteViews.setRoundBackground(context.resources, R.id.image_background, size)
@@ -1193,7 +1222,7 @@ fun create4x1RemoteViews(
         },
     )
     remoteViews.setupTamilTimeSlot(clock, R.id.time_header_4x1)
-    if (isWidgetClock) remoteViews.configureClock(R.id.textPlaceholder1_4x1)
+    if (isWidgetClock) remoteViews.configureClock(R.id.textPlaceholder1_4x1, clock)
     remoteViews.setRoundBackground(context.resources, R.id.widget_layout4x1_background, size)
     remoteViews.setDirection(R.id.widget_layout4x1, context.resources)
     remoteViews.setupForegroundTextColors(
@@ -1259,7 +1288,7 @@ fun create2x2RemoteViews(
     remoteViews.setTextViewTextSizeSp(R.id.time_2x2, 34 * scale)
     if (isWidgetClock) {
         remoteViews.setTextViewTextSizeSp(R.id.time_header_2x2, 22 * scale)
-        remoteViews.configureClock(R.id.time_2x2)
+        remoteViews.configureClock(R.id.time_2x2, clock)
     }
     remoteViews.setRoundBackground(context.resources, R.id.widget_layout2x2_background, size)
     remoteViews.setDirection(R.id.widget_layout2x2, context.resources)
@@ -1350,7 +1379,7 @@ fun create4x2RemoteViews(
     remoteViews.setTextViewTextSizeSp(R.id.textPlaceholder4times_5_4x2, 14 * scale)
     remoteViews.setTextViewTextSizeSp(R.id.event_4x2, 13 * scale)
 
-    if (isWidgetClock) remoteViews.configureClock(R.id.textPlaceholder0_4x2)
+    if (isWidgetClock) remoteViews.configureClock(R.id.textPlaceholder0_4x2, clock)
     remoteViews.setRoundBackground(context.resources, R.id.widget_layout4x2_background, size)
     remoteViews.setDirection(R.id.widget_layout4x2, context.resources)
 
@@ -1445,6 +1474,317 @@ fun create4x2RemoteViews(
     setEventsInWidget(context.resources, jdn, remoteViews, R.id.holiday_4x2, R.id.event_4x2)
 
     remoteViews.setOnClickPendingIntent(R.id.widget_layout4x2, context.launchAppPendingIntent())
+    return remoteViews
+}
+
+fun createGlassRemoteViews(
+    context: Context,
+    size: DpSize?,
+    jdn: Jdn,
+    date: AbstractDate,
+    clock: Clock,
+    prayTimes: PrayTimes?,
+    preferences: SharedPreferences,
+    widgetId: Int,
+    fallbackCityName: String? = null,
+): RemoteViews {
+    val scale = preferences.getWidgetTextScale(widgetId)
+    val remoteViews = RemoteViews(context.packageName, R.layout.widget_glass)
+
+    val themeKey = PREF_WIDGET_GLASS_THEME + widgetId
+    val themeName = preferences.getString(themeKey, null)
+        ?: preferences.getString(PREF_WIDGET_GLASS_THEME, null)
+    val theme = GlassWidgetTheme.fromName(themeName)
+
+    // Widget language: explicit FA/EN choice per widget, fallback to app language.
+    // This fixes background refreshes resolving strings from system locale (English)
+    // instead of the app language.
+    val glassLangPref = preferences.getString(PREF_WIDGET_GLASS_LANGUAGE + widgetId, null)
+        ?: preferences.getString(PREF_WIDGET_GLASS_LANGUAGE, null)
+    val targetLang = if (glassLangPref == null) language
+    else GlassWidgetLanguage.fromName(glassLangPref).targetLanguage
+    val isGlassFa = targetLang.isPersianOrDari
+    val localizedContext = run {
+        val locale = targetLang.asSystemLocale()
+        val config = android.content.res.Configuration(context.resources.configuration)
+        config.setLocale(locale)
+        context.createConfigurationContext(config)
+    }
+    val localizedRes = localizedContext.resources
+
+    val isLiquidDark = preferences.getBoolean(PREF_LIQUID_GLASS_IS_DARK, false)
+    if (theme == GlassWidgetTheme.LIQUID_GLASS) {
+        val yKey = PREF_WIDGET_GLASS_Y_POS + widgetId
+        val yPos = preferences.getInt(yKey, -1).takeIf { it >= 0 }
+            ?: preferences.getInt(PREF_WIDGET_GLASS_Y_POS, DEFAULT_WIDGET_GLASS_Y_POS)
+        val bitmap = LiquidGlassEngine.cropWidgetLiquidGlass(context, yPos.toFloat())
+            ?: run {
+                val processedFile = File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED)
+                if (processedFile.exists()) {
+                    runCatching { BitmapFactory.decodeFile(processedFile.absolutePath) }.getOrNull()
+                } else null
+            }
+
+        if (bitmap != null) {
+            remoteViews.setImageViewBitmap(R.id.widget_glass_background, bitmap)
+        } else {
+            remoteViews.setImageViewResource(R.id.widget_glass_background, theme.backgroundDrawable)
+        }
+    } else {
+        remoteViews.setImageViewResource(R.id.widget_glass_background, theme.backgroundDrawable)
+    }
+
+    val clockCardBg = if (theme == GlassWidgetTheme.LIQUID_GLASS) {
+        if (isLiquidDark) R.drawable.bg_glass_card_liquid else R.drawable.bg_glass_card_liquid_dark
+    } else theme.cardBackgroundDrawable
+    remoteViews.setInt(R.id.glass_clock_card, "setBackgroundResource", clockCardBg)
+
+    val calendarCardBg = when {
+        theme == GlassWidgetTheme.LIQUID_GLASS ->
+            if (isLiquidDark) R.drawable.bg_glass_card_liquid else R.drawable.bg_glass_card_liquid_dark
+        theme.isDark -> R.drawable.bg_glass_card_dark
+        else -> R.drawable.bg_glass_card_sm
+    }
+    remoteViews.setInt(R.id.glass_calendar_card, "setBackgroundResource", calendarCardBg)
+
+    val bottomBarBg = if (theme == GlassWidgetTheme.LIQUID_GLASS) {
+        if (isLiquidDark) R.drawable.bg_glass_bottom_bar_liquid else R.drawable.bg_glass_bottom_bar_liquid_dark
+    } else theme.bottomBarBackgroundDrawable
+    remoteViews.setInt(R.id.glass_bottom_bar_container, "setBackgroundResource", bottomBarBg)
+
+    val scrimVisible = when (theme) {
+        GlassWidgetTheme.NIGHT_VECTOR, GlassWidgetTheme.DARK_OBSIDIAN, GlassWidgetTheme.LIQUID_GLASS -> View.GONE
+        else -> View.VISIBLE
+    }
+    remoteViews.setViewVisibility(R.id.glass_scrim, scrimVisible)
+
+    // Keep the glass design stable (asymmetric clock card + RTL slot order)
+    // regardless of FA/EN choice.
+    remoteViews.setInt(
+        R.id.widget_layout_glass, "setLayoutDirection", View.LAYOUT_DIRECTION_RTL,
+    )
+
+    remoteViews.setTextViewTextSizeSp(R.id.glass_clock, 33 * scale)
+    remoteViews.setTextViewTextSizeSp(R.id.glass_clock_ampm, 12 * scale)
+
+    val iconBadgeIds = listOf(
+        R.id.glass_icon_fajr,
+        R.id.glass_icon_sunrise,
+        R.id.glass_icon_dhuhr,
+        R.id.glass_icon_sunset,
+        R.id.glass_icon_maghrib,
+        R.id.glass_icon_midnight,
+    )
+    val slotIds = listOf(
+        R.id.glass_slot_fajr,
+        R.id.glass_slot_sunrise,
+        R.id.glass_slot_dhuhr,
+        R.id.glass_slot_sunset,
+        R.id.glass_slot_maghrib,
+        R.id.glass_slot_midnight,
+    )
+    val timeValIds = listOf(
+        R.id.glass_val_fajr,
+        R.id.glass_val_sunrise,
+        R.id.glass_val_dhuhr,
+        R.id.glass_val_sunset,
+        R.id.glass_val_maghrib,
+        R.id.glass_val_midnight,
+    )
+    val timeTitleIds = listOf(
+        R.id.glass_title_fajr,
+        R.id.glass_title_sunrise,
+        R.id.glass_title_dhuhr,
+        R.id.glass_title_sunset,
+        R.id.glass_title_maghrib,
+        R.id.glass_title_midnight,
+    )
+
+    val customFontFile = resolveCustomFontPath(context)
+    val numFmt = targetLang.preferredNumeral
+    val glassWeekDay = targetLang.getWeekDays(localizedRes).getOrNull(jdn.weekDay.ordinal)
+        .orEmpty()
+    val glassMonth = when (date) {
+        is PersianDate -> targetLang.getPersianMonths(localizedRes, false, false)
+            .getOrNull(date.month - 1).orEmpty()
+        is CivilDate -> targetLang.getGregorianMonths(localizedRes, false)
+            .getOrNull(date.month - 1).orEmpty()
+        is IslamicDate -> targetLang.getIslamicMonths(localizedRes)
+            .getOrNull(date.month - 1).orEmpty()
+        else -> date.monthName
+    }
+
+    remoteViews.configureClock(R.id.glass_clock, clock)
+    if (isForcedIranTimeEnabled) {
+        remoteViews.setString(R.id.glass_clock_ampm, "setTimeZone", IRAN_TIMEZONE_ID)
+    }
+    if (clockIn24) {
+        remoteViews.setViewVisibility(R.id.glass_clock_ampm, View.GONE)
+    } else {
+        remoteViews.setViewVisibility(R.id.glass_clock_ampm, View.VISIBLE)
+        val (h, _) = clock.toHoursAndMinutesPair()
+        remoteViews.setTextViewText(R.id.glass_clock_ampm, if (h >= 12) "PM" else "AM")
+    }
+
+    val storedGlassCity = preferences.getString(PREF_SELECTED_LOCATION, null)
+        ?.takeIf { it.isNotEmpty() && it != DEFAULT_CITY }
+        ?.let { runCatching { citiesStore[it] }.getOrNull() }
+    val displayCity: String = storedGlassCity?.let(targetLang::getCityName)
+        ?.takeIf { it.isNotBlank() }
+        ?: (cityName?.takeIf { it.isNotBlank() } ?: fallbackCityName)?.takeIf { it.isNotBlank() }
+        ?: preferences.getString(PREF_GEOCODED_CITYNAME, null)?.takeIf { it.isNotBlank() }
+        ?: if (isGlassFa) "تهران" else "Tehran"
+    val cityBmp = WidgetGlassFontHelper.createTextBitmap(
+        context = localizedContext,
+        text = displayCity,
+        textSizeSp = 9.5f * scale,
+        textColor = 0xFFE0C6F7.toInt(),
+        isBold = false,
+        customFontFile = customFontFile,
+    )
+    remoteViews.setImageViewBitmap(R.id.glass_location_name, cityBmp)
+
+    val horizonString = localizedContext.getString(R.string.at_the_horizon_of, displayCity)
+    val horizonBmp = WidgetGlassFontHelper.createTextBitmap(
+        context = localizedContext,
+        text = horizonString,
+        textSizeSp = 8f * scale,
+        textColor = 0xB3DCC9F5.toInt(),
+        isBold = false,
+        customFontFile = customFontFile,
+    )
+    remoteViews.setImageViewBitmap(R.id.glass_horizon_text, horizonBmp)
+
+    val fullDateString = "$glassWeekDay ${numFmt.format(date.dayOfMonth)} $glassMonth ${numFmt.format(date.year)}"
+    val fullDateBmp = WidgetGlassFontHelper.createTextBitmap(
+        context = localizedContext,
+        text = fullDateString,
+        textSizeSp = 9.5f * scale,
+        textColor = 0xE6FFFFFF.toInt(),
+        isBold = false,
+        customFontFile = customFontFile,
+    )
+    remoteViews.setImageViewBitmap(R.id.glass_full_date_text, fullDateBmp)
+
+    val dayBmp = WidgetGlassFontHelper.createTextBitmap(
+        context = localizedContext,
+        text = numFmt.format(date.dayOfMonth),
+        textSizeSp = 15f * scale,
+        textColor = 0xFFFFFFFF.toInt(),
+        isBold = true,
+        customFontFile = customFontFile,
+    )
+    remoteViews.setImageViewBitmap(R.id.glass_calendar_day, dayBmp)
+
+    val monthBmp = WidgetGlassFontHelper.createTextBitmap(
+        context = localizedContext,
+        text = glassMonth,
+        textSizeSp = 8.5f * scale,
+        textColor = 0xFFE0C6F7.toInt(),
+        isBold = false,
+        customFontFile = customFontFile,
+    )
+    remoteViews.setImageViewBitmap(R.id.glass_calendar_month, monthBmp)
+
+    val yearBmp = WidgetGlassFontHelper.createTextBitmap(
+        context = localizedContext,
+        text = numFmt.format(date.year),
+        textSizeSp = 7.5f * scale,
+        textColor = 0xCCFFFFFF.toInt(),
+        isBold = false,
+        customFontFile = customFontFile,
+    )
+    remoteViews.setImageViewBitmap(R.id.glass_calendar_year, yearBmp)
+
+    val effectivePrayTimes = prayTimes ?: tehranCoordinates.calculatePrayTimes()
+    val times = listOf(
+        Triple(PrayTime.FAJR, Clock(effectivePrayTimes.fajr), R.id.glass_val_fajr),
+        Triple(PrayTime.SUNRISE, Clock(effectivePrayTimes.sunrise), R.id.glass_val_sunrise),
+        Triple(PrayTime.DHUHR, Clock(effectivePrayTimes.dhuhr), R.id.glass_val_dhuhr),
+        Triple(PrayTime.SUNSET, Clock(effectivePrayTimes.sunset), R.id.glass_val_sunset),
+        Triple(PrayTime.MAGHRIB, Clock(effectivePrayTimes.maghrib), R.id.glass_val_maghrib),
+        Triple(PrayTime.MIDNIGHT, Clock(effectivePrayTimes.midnight), R.id.glass_val_midnight),
+    )
+
+    val nextIndex = times.indexOfFirst { it.second > clock }.let {
+        if (it == -1) 0 else it
+    }
+    val (nextPrayTime, nextClock) = times[nextIndex]
+    val prevIndex = if (nextIndex == 0) times.size - 1 else nextIndex - 1
+    val (_, prevClock) = times[prevIndex]
+
+    val diff = nextClock - clock
+    val normalizedDiff = if (diff.value < 0) diff + Clock(24.0) else diff
+    val (hours, minutes) = normalizedDiff.toHoursAndMinutesPair()
+    val prayTitle = localizedContext.getString(nextPrayTime.stringRes)
+    val prefix = if (isGlassFa && (nextPrayTime == PrayTime.FAJR || nextPrayTime == PrayTime.DHUHR || nextPrayTime == PrayTime.MAGHRIB)) "اذان $prayTitle" else prayTitle
+    val countdownText = if (hours == 0) {
+        if (isGlassFa) "${numFmt.format(minutes)} دقیقه تا $prefix"
+        else "${numFmt.format(minutes)} min to $prefix"
+    } else {
+        val hm = String.format(Locale.ENGLISH, "%02d:%02d", hours, minutes)
+        if (isGlassFa) "$hm تا $prefix" else "$hm to $prefix"
+    }
+    val countdownBmp = WidgetGlassFontHelper.createTextBitmap(
+        context = localizedContext,
+        text = countdownText,
+        textSizeSp = 9.5f * scale,
+        textColor = 0xFFFFFFFF.toInt(),
+        isBold = true,
+        customFontFile = customFontFile,
+    )
+    remoteViews.setImageViewBitmap(R.id.glass_countdown_text, countdownBmp)
+
+    times.forEachIndexed { i, (prayTime, prayClock, valViewId) ->
+        val isActive = i == nextIndex
+        val titleViewId = timeTitleIds[i]
+        val titleText = localizedContext.getString(prayTime.stringRes)
+        val titleColor = if (isActive) 0xFFFFFFFF.toInt() else 0xFFDCC9F5.toInt()
+        val titleBmp = WidgetGlassFontHelper.createTextBitmap(
+            context = localizedContext,
+            text = titleText,
+            textSizeSp = 8.5f * scale,
+            textColor = titleColor,
+            isBold = isActive,
+            customFontFile = customFontFile,
+        )
+        remoteViews.setImageViewBitmap(titleViewId, titleBmp)
+
+        val (h, m) = prayClock.toHoursAndMinutesPair()
+        val valText = String.format(Locale.ENGLISH, "%02d:%02d", h, m)
+        val valColor = if (isActive) 0xFFFFFFFF.toInt() else 0xFFFAFAFC.toInt()
+        val valBmp = WidgetGlassFontHelper.createTextBitmap(
+            context = localizedContext,
+            text = valText,
+            textSizeSp = 9.5f * scale,
+            textColor = valColor,
+            isBold = true,
+            customFontFile = customFontFile,
+        )
+        remoteViews.setImageViewBitmap(valViewId, valBmp)
+    }
+
+    val totalSpan = (nextClock - prevClock).let { if (it.value <= 0) it + Clock(24.0) else it }.value
+    val elapsed = (clock - prevClock).let { if (it.value < 0) it + Clock(24.0) else it }.value
+    val progressPercent = if (totalSpan > 0) ((elapsed / totalSpan) * 1000).toInt().coerceIn(0, 1000) else 500
+    remoteViews.setProgressBar(R.id.glass_progress_bar, 1000, progressPercent, false)
+
+    iconBadgeIds.forEachIndexed { i, id ->
+        val badgeBg = if (i == nextIndex) R.drawable.bg_glass_icon_badge_active else R.drawable.bg_glass_icon_badge
+        remoteViews.setInt(id, "setBackgroundResource", badgeBg)
+    }
+
+    slotIds.forEachIndexed { i, id ->
+        if (i == nextIndex) {
+            remoteViews.setInt(id, "setBackgroundResource", R.drawable.bg_glass_active_slot)
+        } else {
+            remoteViews.setInt(id, "setBackgroundResource", 0)
+        }
+    }
+
+    remoteViews.setViewVisibility(R.id.glass_bottom_bar_container, View.VISIBLE)
+
+    remoteViews.setOnClickPendingIntent(R.id.widget_layout_glass, context.launchAppPendingIntent())
     return remoteViews
 }
 
@@ -1723,7 +2063,7 @@ private data class NotificationData(
                 }
             }
         ) {
-            val icon = createStatusIcon(date.dayOfMonth, customFontFile, isBoldFont)
+            val icon = createStatusIcon(date.dayOfMonth, customFontFile, isBoldFont, context = context)
             builder.setSmallIcon(IconCompat.createWithBitmap(icon))
         } else builder.setSmallIcon(getDayIconResource(date.dayOfMonth))
         if (isLargeDayNumberOnNotification) {
@@ -1734,6 +2074,7 @@ private data class NotificationData(
                     isBoldFont = isBoldFont,
                     color = 0xFF929292.toInt(),
                     addShadow = true,
+                    context = context,
                 ),
             )
         }
@@ -1862,11 +2203,19 @@ fun RemoteViews.setDirection(@IdRes viewId: Int, resources: Resources) {
     setInt(viewId, "setLayoutDirection", direction)
 }
 
-private fun RemoteViews.configureClock(@IdRes viewId: Int) {
+private fun RemoteViews.configureClock(@IdRes viewId: Int, clock: Clock? = null) {
     if (isForcedIranTimeEnabled) setString(viewId, "setTimeZone", IRAN_TIMEZONE_ID)
-    val clockFormat = if (clockIn24) "kk:mm" else "h:mm"
+    val clockFormat = when {
+        clockIn24 && isClockZeroPadding -> "HH:mm"
+        clockIn24 && !isClockZeroPadding -> "H:mm"
+        !clockIn24 && isClockZeroPadding -> "hh:mm"
+        else -> "h:mm"
+    }
     setCharSequence(viewId, "setFormat12Hour", clockFormat)
     setCharSequence(viewId, "setFormat24Hour", clockFormat)
+    if (clock != null) {
+        setTextViewText(viewId, clock.toEnglishFormattedString(clockIn24, isClockZeroPadding))
+    }
 }
 
 @JvmSynthetic

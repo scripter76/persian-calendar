@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- شکل کلیپ ریشه‌ی ویجت: با clipToOutline گوشه‌های عکس پس‌زمینه را گرد می‌کند (API 31+) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="26dp" />
+    <solid android:color="#FF120B24" />
+</shape>

@@ -46,6 +46,7 @@
                 android:fontFamily="sans-serif"
                 android:gravity="center"
                 android:textFontWeight="500"
+                android:textLocale="en"
                 tools:ignore="UnusedAttribute" />
 
             <TextView

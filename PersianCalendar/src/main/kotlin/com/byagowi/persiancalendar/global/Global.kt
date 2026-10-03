@@ -49,6 +49,7 @@ import com.byagowi.persiancalendar.DEFAULT_WALLPAPER_ALTERNATIVE
 import com.byagowi.persiancalendar.DEFAULT_WALLPAPER_AUTOMATIC
 import com.byagowi.persiancalendar.DEFAULT_WALLPAPER_DARK
 import com.byagowi.persiancalendar.DEFAULT_WIDGET_CLOCK
+import com.byagowi.persiancalendar.DEFAULT_WIDGET_CLOCK_ZERO_PADDING
 import com.byagowi.persiancalendar.DEFAULT_WIDGET_CUSTOMIZATIONS
 import com.byagowi.persiancalendar.DEFAULT_WIDGET_IN_24
 import com.byagowi.persiancalendar.DEFAULT_WIDGET_TRANSPARENCY
@@ -78,6 +79,8 @@ import com.byagowi.persiancalendar.PREF_IRAN_TIME
 import com.byagowi.persiancalendar.PREF_ISO8601_DATE_FORMAT
 import com.byagowi.persiancalendar.PREF_LARGE_DAY_NUMBER_ON_NOTIFICATION
 import com.byagowi.persiancalendar.PREF_LATITUDE
+import com.byagowi.persiancalendar.PREF_LIQUID_GLASS_IS_DARK
+import com.byagowi.persiancalendar.PREF_LIQUID_GLASS_UPDATED_AT
 import com.byagowi.persiancalendar.PREF_LOCAL_NUMERAL
 import com.byagowi.persiancalendar.PREF_LONGITUDE
 import com.byagowi.persiancalendar.PREF_MAIN_CALENDAR_KEY
@@ -110,6 +113,7 @@ import com.byagowi.persiancalendar.PREF_WEEK_START
 import com.byagowi.persiancalendar.PREF_WHAT_TO_SHOW_WIDGETS
 import com.byagowi.persiancalendar.PREF_WIDGETS_PREFER_SYSTEM_COLORS
 import com.byagowi.persiancalendar.PREF_WIDGET_CLOCK
+import com.byagowi.persiancalendar.PREF_WIDGET_CLOCK_ZERO_PADDING
 import com.byagowi.persiancalendar.PREF_WIDGET_IN_24
 import com.byagowi.persiancalendar.PREF_WIDGET_TRANSPARENCY
 import com.byagowi.persiancalendar.R
@@ -183,6 +187,9 @@ val localNumeralPreference by localNumeralPreference_
 
 private val clockIn24_ = mutableStateOf(DEFAULT_WIDGET_IN_24)
 val clockIn24 by clockIn24_
+
+private val isClockZeroPadding_ = mutableStateOf(DEFAULT_WIDGET_CLOCK_ZERO_PADDING)
+val isClockZeroPadding by isClockZeroPadding_
 
 private val isDynamicIconEverEnabled_ = mutableStateOf(false)
 val isDynamicIconEverEnabled by isDynamicIconEverEnabled_
@@ -262,6 +269,12 @@ val customFontName by customFontName_
 
 private val customImageName_ = mutableStateOf<String?>(null)
 val customImageName by customImageName_
+
+private val liquidGlassWallpaperVersion_ = mutableStateOf(0L)
+val liquidGlassWallpaperVersion by liquidGlassWallpaperVersion_
+
+private val isLiquidGlassDark_ = mutableStateOf(false)
+val isLiquidGlassDark by isLiquidGlassDark_
 
 private val englishGregorianPersianMonths_ =
     mutableStateOf(DEFAULT_ENGLISH_GREGORIAN_PERSIAN_MONTHS)
@@ -519,6 +532,8 @@ fun updateStoredPreference(context: Context) {
     isBoldFont_.value = preferences.getBoolean(PREF_BOLD_FONT, DEFAULT_BOLD_FONT)
     customFontName_.value = preferences.getString(PREF_CUSTOM_FONT_NAME, null)
     customImageName_.value = preferences.getString(PREF_CUSTOM_IMAGE_NAME, null)
+    liquidGlassWallpaperVersion_.value = preferences.getLong(PREF_LIQUID_GLASS_UPDATED_AT, 0L)
+    isLiquidGlassDark_.value = preferences.getBoolean(PREF_LIQUID_GLASS_IS_DARK, false)
     englishGregorianPersianMonths_.value = language.isPersian && preferences.getBoolean(
         PREF_ENGLISH_GREGORIAN_PERSIAN_MONTHS, DEFAULT_ENGLISH_GREGORIAN_PERSIAN_MONTHS,
     )
@@ -549,6 +564,9 @@ fun updateStoredPreference(context: Context) {
     }
 
     clockIn24_.value = preferences.getBoolean(PREF_WIDGET_IN_24, DEFAULT_WIDGET_IN_24)
+    isClockZeroPadding_.value = preferences.getBoolean(
+        PREF_WIDGET_CLOCK_ZERO_PADDING, DEFAULT_WIDGET_CLOCK_ZERO_PADDING,
+    )
     isForcedIranTimeEnabled_.value = language.showIranTimeOption && preferences.getBoolean(
         PREF_IRAN_TIME, DEFAULT_IRAN_TIME,
     ) && TimeZone.getDefault().id != IRAN_TIMEZONE_ID

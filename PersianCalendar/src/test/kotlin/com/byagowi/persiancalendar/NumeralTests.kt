@@ -35,4 +35,25 @@ class NumeralTests {
     fun `formatLongNumber works properly`() {
         assertEquals("۱۲٬۳۱۲٬۳۱۲", Numeral.PERSIAN.formatLongNumber(12312312L))
     }
+
+    @Test
+    fun `test clock format in english`() {
+        val clock1 = com.byagowi.persiancalendar.entities.Clock(8.0 + 5.0 / 60.0)
+        assertEquals("08:05", clock1.toEnglishFormattedString(in24 = true, zeroPad = true))
+        assertEquals("8:05", clock1.toEnglishFormattedString(in24 = true, zeroPad = false))
+        assertEquals("08:05", clock1.toEnglishFormattedString(in24 = false, zeroPad = true))
+        assertEquals("8:05", clock1.toEnglishFormattedString(in24 = false, zeroPad = false))
+
+        val clock2 = com.byagowi.persiancalendar.entities.Clock(14.0 + 30.0 / 60.0)
+        assertEquals("14:30", clock2.toEnglishFormattedString(in24 = true, zeroPad = true))
+        assertEquals("14:30", clock2.toEnglishFormattedString(in24 = true, zeroPad = false))
+        assertEquals("02:30", clock2.toEnglishFormattedString(in24 = false, zeroPad = true))
+        assertEquals("2:30", clock2.toEnglishFormattedString(in24 = false, zeroPad = false))
+
+        val clockMidnight = com.byagowi.persiancalendar.entities.Clock(0.0)
+        assertEquals("00:00", clockMidnight.toEnglishFormattedString(in24 = true, zeroPad = true))
+        assertEquals("0:00", clockMidnight.toEnglishFormattedString(in24 = true, zeroPad = false))
+        assertEquals("12:00", clockMidnight.toEnglishFormattedString(in24 = false, zeroPad = true))
+        assertEquals("12:00", clockMidnight.toEnglishFormattedString(in24 = false, zeroPad = false))
+    }
 }

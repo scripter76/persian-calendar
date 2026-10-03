@@ -54,7 +54,8 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif"
                     android:maxLines="1"
-                    android:textAlignment="center" />
+                    android:textAlignment="center"
+                    android:textLocale="en" />
 
             </LinearLayout>
 

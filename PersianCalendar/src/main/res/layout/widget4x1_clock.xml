@@ -49,6 +49,7 @@
                 android:gravity="start"
                 android:textAlignment="viewStart"
                 android:textFontWeight="500"
+                android:textLocale="en"
                 tools:ignore="UnusedAttribute" />
 
             <TextView

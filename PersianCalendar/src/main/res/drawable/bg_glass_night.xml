@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- نسخه‌ی دوم پس‌زمینه: آسمان شب کهکشانی، کاملاً وکتوری (بدون عکس) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:type="linear"
+                android:angle="288"
+                android:startColor="#FF1E1240"
+                android:centerColor="#FF2A1553"
+                android:endColor="#FF0D0720" />
+        </shape>
+    </item>
+
+    <!-- درخشش سرخابی از پایین-راست تصویر (در RTL: کنار کارت ساعت) -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:type="radial"
+                android:centerX="0.10"
+                android:centerY="1.10"
+                android:gradientRadius="70%p"
+                android:startColor="#61D83E8E"
+                android:endColor="#00D83E8E" />
+        </shape>
+    </item>
+
+    <!-- درخشش آبی از بالا-چپ -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:type="radial"
+                android:centerX="0.94"
+                android:centerY="-0.10"
+                android:gradientRadius="75%p"
+                android:startColor="#574A74EE"
+                android:endColor="#004A74EE" />
+        </shape>
+    </item>
+
+    <!-- هاله‌ی بنفش مرکزی -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:type="radial"
+                android:centerX="0.50"
+                android:centerY="1.20"
+                android:gradientRadius="90%p"
+                android:startColor="#579E66F0"
+                android:endColor="#009E66F0" />
+        </shape>
+    </item>
+
+    <item android:drawable="@drawable/bg_glass_stars" />
+
+</layer-list>

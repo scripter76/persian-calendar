@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- تیرگی ملایم روی عکس تا متن سفید کنتراست کافی بگیرد -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="26dp" />
+    <gradient
+        android:type="linear"
+        android:angle="270"
+        android:startColor="#57180E2E"
+        android:centerColor="#14180E2E"
+        android:endColor="#75180E2E" />
+</shape>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- لهجه: اندرلاین ساعت، نوار پیشرفت، آیکون درخشش و پین -->
+    <color name="glass_accent">#CDB8FF</color>
+
+    <!-- تم رنگی آیکون و برچسب اوقات شرعی -->
+    <color name="glass_icon_tint">#E0C6F7</color>
+    <color name="glass_label">#DCC9F5</color>
+    <color name="glass_value">#FAFAFC</color>
+
+    <!-- ساعت: در ویجت گرادیان متن ممکن نیست؛ این رنگ نقطه‌ی میانی گرادیان است -->
+    <color name="glass_time">#F0E9FE</color>
+    <color name="glass_time_ampm">#DCD0FA</color>
+
+    <!-- متن‌های دیگر -->
+    <color name="glass_text_primary">#F4F2FC</color>
+    <color name="glass_city">#EAECFA</color>
+    <color name="glass_date">#ECECFB</color>
+    <color name="glass_countdown">#F1EBFC</color>
+    <color name="glass_sub">#CFBFEC</color>
+    <color name="glass_cal_month">#E2D6F6</color>
+    <color name="glass_cal_year">#CBBCE8</color>
+</resources>

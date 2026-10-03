@@ -18,7 +18,8 @@ enum class Theme(
     MODERN("ClassicTheme"/*legacy*/, R.string.theme_modern),
     AQUA("BlueTheme"/*legacy*/, R.string.theme_aqua, lackDynamicColors = true),
     DARK("DarkTheme", R.string.theme_dark, isDark = true),
-    BLACK("BlackTheme", R.string.theme_black, hasGradient = false, isDark = true);
+    BLACK("BlackTheme", R.string.theme_black, hasGradient = false, isDark = true),
+    LIQUID_GLASS("LiquidGlass", R.string.theme_liquid_glass, hasGradient = false, lackDynamicColors = true, isDark = false);
 
     val isDynamicColors
         @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.S) get() =

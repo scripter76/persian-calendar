@@ -1,5 +1,6 @@
 package com.byagowi.persiancalendar.utils
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
@@ -10,6 +11,7 @@ import androidx.core.graphics.createBitmap
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.entities.Numeral
 import com.byagowi.persiancalendar.global.numeral
+import com.byagowi.persiancalendar.ui.theme.resolveTypeface
 import java.io.File
 
 // Dynamic icon generation, currently unused
@@ -19,6 +21,7 @@ fun createStatusIcon(
     isBoldFont: Boolean = false,
     color: Int = Color.WHITE,
     addShadow: Boolean = false,
+    context: Context? = null,
 ): Bitmap {
     val text = numeral.format(dayOfMonth)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).also {
@@ -29,8 +32,15 @@ fun createStatusIcon(
         }
         it.textAlign = Paint.Align.CENTER
         it.color = color
-        if (customFontFile != null) it.typeface = Typeface.createFromFile(customFontFile)
-        if (isBoldFont) it.typeface = Typeface.create(it.typeface, Typeface.BOLD)
+        val tf = if (customFontFile != null) {
+            val f = Typeface.createFromFile(customFontFile)
+            if (isBoldFont) Typeface.create(f, Typeface.BOLD) else f
+        } else if (context != null) {
+            resolveTypeface(context, null, isBoldFont)
+        } else {
+            if (isBoldFont) Typeface.create(null as Typeface?, Typeface.BOLD) else null
+        }
+        if (tf != null) it.typeface = tf
         if (addShadow) it.setShadowLayer(1f, 1f, 1f, Color.BLACK)
     }
     val bounds = Rect()

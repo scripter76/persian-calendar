@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- نشان دایره‌ای پشت آیکون هر وقت — شفاف و ملایم با ته‌مایه بنفش -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:type="linear"
+                android:angle="315"
+                android:startColor="#2AE8DCFF"
+                android:endColor="#0AFFFFFF" />
+        </shape>
+    </item>
+    <item
+        android:left="1dp"
+        android:top="1dp"
+        android:right="1dp"
+        android:bottom="1dp">
+        <shape android:shape="oval">
+            <gradient
+                android:type="linear"
+                android:angle="315"
+                android:startColor="#222C1A58"
+                android:endColor="#14190C36" />
+        </shape>
+    </item>
+</layer-list>

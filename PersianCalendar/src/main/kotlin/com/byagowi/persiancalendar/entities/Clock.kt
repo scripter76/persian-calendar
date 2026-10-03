@@ -6,6 +6,7 @@ import androidx.collection.IntIntPair
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.global.amString
 import com.byagowi.persiancalendar.global.clockIn24
+import com.byagowi.persiancalendar.global.isClockZeroPadding
 import com.byagowi.persiancalendar.global.language
 import com.byagowi.persiancalendar.global.numeral
 import com.byagowi.persiancalendar.global.pmString
@@ -31,6 +32,16 @@ value class Clock(val value: Double/*A real number, usually [0-24), portion of a
     fun toHoursAndMinutesPair(): IntIntPair {
         if (value.isNaN()) return IntIntPair(0, 0)
         return IntIntPair(value.toInt(), ((value - value.toInt()) * 60).toInt())
+    }
+
+    fun toEnglishFormattedString(
+        in24: Boolean = clockIn24,
+        zeroPad: Boolean = isClockZeroPadding,
+    ): String {
+        val (hours, minutes) = toHoursAndMinutesPair()
+        val hour = if (in24) hours else ((hours % 12).takeIf { it != 0 } ?: 12)
+        val hourFormat = if (zeroPad) "%02d" else "%d"
+        return String.format(Locale.ENGLISH, "$hourFormat:%02d", hour, minutes)
     }
 
     fun toBasicFormatString(): String {

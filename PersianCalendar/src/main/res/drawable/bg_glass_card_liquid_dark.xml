@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- کارت شیشه‌ای مایع تیره برای والپیپرهای روشن (کنتراست بالا و نمای اسموکی گلس) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners
+                android:topLeftRadius="16dp"
+                android:bottomLeftRadius="16dp"
+                android:topRightRadius="28dp"
+                android:bottomRightRadius="28dp" />
+            <gradient
+                android:type="linear"
+                android:angle="315"
+                android:startColor="#60FFFFFF"
+                android:centerColor="#18FFFFFF"
+                android:endColor="#30000000" />
+        </shape>
+    </item>
+
+    <item
+        android:left="1dp"
+        android:top="1dp"
+        android:right="1dp"
+        android:bottom="1dp">
+        <shape android:shape="rectangle">
+            <corners
+                android:topLeftRadius="15dp"
+                android:bottomLeftRadius="15dp"
+                android:topRightRadius="27dp"
+                android:bottomRightRadius="27dp" />
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#651C2028"
+                android:centerColor="#55141720"
+                android:endColor="#700E1017" />
+        </shape>
+    </item>
+</layer-list>

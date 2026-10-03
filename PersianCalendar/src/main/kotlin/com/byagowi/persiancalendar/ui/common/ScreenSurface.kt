@@ -15,7 +15,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
@@ -24,6 +27,8 @@ import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.byagowi.persiancalendar.SHARED_CONTENT_KEY_CARD
 import com.byagowi.persiancalendar.SHARED_CONTENT_KEY_CARD_CONTENT
 import com.byagowi.persiancalendar.global.customImageName
+import com.byagowi.persiancalendar.global.userSetTheme
+import com.byagowi.persiancalendar.ui.theme.Theme
 import com.byagowi.persiancalendar.ui.theme.animateColor
 import com.byagowi.persiancalendar.ui.theme.needsScreenSurfaceDragHandle
 import com.byagowi.persiancalendar.ui.utils.AppBlendAlpha
@@ -51,9 +56,12 @@ fun SharedTransitionScope.ScreenSurface(
                 val needsScreenSurfaceDragHandle =
                     mayNeedDragHandleToDivide && needsScreenSurfaceDragHandle()
                 val customImageName = customImageName
+                val isLiquidGlass = userSetTheme == Theme.LIQUID_GLASS
                 val surfaceColor by animateColor(
-                    MaterialTheme.colorScheme.surface.let {
-                        if (customImageName == null) it else it.copy(AppBlendAlpha)
+                    when {
+                        isLiquidGlass -> MaterialTheme.colorScheme.surface
+                        customImageName != null -> MaterialTheme.colorScheme.surface.copy(AppBlendAlpha)
+                        else -> MaterialTheme.colorScheme.surface
                     },
                 )
                 val density = LocalDensity.current
@@ -77,6 +85,19 @@ fun SharedTransitionScope.ScreenSurface(
                     run {
                         val outline = shape.createOutline(size, this.layoutDirection, density)
                         drawOutline(outline, surfaceColor)
+                        if (isLiquidGlass) {
+                            drawOutline(
+                                outline = outline,
+                                brush = Brush.linearGradient(
+                                    0f to Color(0x90FFFFFF),
+                                    0.5f to Color(0x20FFFFFF),
+                                    1f to Color(0x10000000),
+                                    start = Offset(0f, 0f),
+                                    end = Offset(size.width, size.height),
+                                ),
+                                style = Stroke(width = 1.2.dp.toPx()),
+                            )
+                        }
                     }
                     // Ugly but in order to support overshoot animations let's draw surface color
                     // under the content

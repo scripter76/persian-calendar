@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- نوار پایینی شیشه‌ای مایع تیره برای والپیپرهای روشن -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="17dp" />
+            <gradient
+                android:type="linear"
+                android:angle="315"
+                android:startColor="#60FFFFFF"
+                android:centerColor="#18FFFFFF"
+                android:endColor="#30000000" />
+        </shape>
+    </item>
+    <item
+        android:left="1dp"
+        android:top="1dp"
+        android:right="1dp"
+        android:bottom="1dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="16dp" />
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#651C2028"
+                android:centerColor="#55141720"
+                android:endColor="#700E1017" />
+        </shape>
+    </item>
+</layer-list>

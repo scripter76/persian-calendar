@@ -18,6 +18,10 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
+        tools:ignore="ForegroundServicePermission" />
 
     <uses-feature
         android:name="android.hardware.touchscreen"
@@ -234,6 +238,16 @@
         </activity>
 
         <activity
+            android:name=".ui.settings.widgetnotification.WidgetGlassConfigurationActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Wallpaper.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".ui.settings.widgetnotification.WidgetWeekViewConfigurationActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
             android:exported="true"
@@ -307,6 +321,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/persiancalendar_provider4x2" />
+        </receiver>
+
+        <receiver
+            android:name=".WidgetGlass"
+            android:exported="false"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/widget_glass_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/persiancalendar_provider_glass" />
         </receiver>
 
         <receiver
@@ -487,6 +515,11 @@
         <service
             android:name=".service.ScheduleWidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <service
+            android:name=".service.LiquidGlassCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <activity-alias
             android:name=".Day1"

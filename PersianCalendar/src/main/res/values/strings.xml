@@ -127,6 +127,8 @@
     <string name="hijri_offset_summary">Adjust Hijri calendar by adding a number</string>
     <string name="clock_in_24">Clock in 24 hour</string>
     <string name="showing_clock_in_24">Show the clock in 24 hour</string>
+    <string name="clock_zero_padding">Zero padding</string>
+    <string name="showing_clock_zero_padding">Show leading zero for single-digit hours</string>
     <!--Widget and Notification Settings-->
     <string name="widget_text_color">Widget Text Color</string>
     <string name="select_widgets_text_color">Select custom color for widgets texts</string>
@@ -428,4 +430,33 @@ The app needs this only once, however, if you move to a new location, accessing 
         <item quantity="one">%1$s year</item>
         <item quantity="other">%1$s years</item>
     </plurals>
+    <string name="widget_glass_name">Glass Widget</string>
+    <string name="theme_glass_mosque">Sunset Mosque (Glass)</string>
+    <string name="theme_glass_night_vector">Galaxy Night (Vector)</string>
+    <string name="theme_glass_ios_clear">Frosted Glass (Minimal iOS)</string>
+    <string name="theme_glass_dark">Dark Glass (OLED)</string>
+    <string name="theme_glass_azure">Persian Azure</string>
+    <string name="widget_glass_theme">Glass Widget Theme</string>
+    <string name="widget_glass_language">Glass Widget Language</string>
+    <string name="at_the_horizon_of">To horizon of %s</string>
+    <string name="widget_glass_description">Prayer Times — Glass Widget</string>
+    <string name="theme_liquid_glass">Liquid Glass</string>
+    <string name="theme_liquid_glass_desc">Liquid glass effect using wallpaper screen capture</string>
+    <string name="liquid_glass_wallpaper_setup">Liquid Glass Wallpaper</string>
+    <string name="liquid_glass_wallpaper_setup_desc">Capture or choose a wallpaper to complete the liquid glass effect</string>
+    <string name="liquid_glass_capture_screen">Screen Capture</string>
+    <string name="liquid_glass_auto_wallpaper">Auto-detect Wallpaper</string>
+    <string name="liquid_glass_pick_image">Choose from Gallery</string>
+    <string name="liquid_glass_remove_wallpaper">Remove Wallpaper</string>
+    <string name="liquid_glass_wallpaper_active">Wallpaper is active</string>
+    <string name="liquid_glass_capture_success">Wallpaper captured and Liquid Glass effect applied</string>
+    <string name="liquid_glass_capture_error">Failed to capture screen</string>
+    <string name="liquid_glass_auto_failed">Cannot access system wallpaper directly. Please use Screen Capture or Gallery.</string>
+    <string name="liquid_glass_capturing_notification">Capturing wallpaper for Liquid Glass…</string>
+    <string name="widget_glass_position">Widget Screen Position</string>
+    <string name="widget_glass_position_summary">Aligns liquid glass with the widget position on home screen</string>
+    <string name="widget_position_top">Top</string>
+    <string name="widget_position_upper_mid">Upper Middle</string>
+    <string name="widget_position_center">Center</string>
+    <string name="widget_position_bottom">Bottom</string>
 </resources>

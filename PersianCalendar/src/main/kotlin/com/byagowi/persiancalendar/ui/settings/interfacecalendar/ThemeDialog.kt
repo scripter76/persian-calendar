@@ -66,6 +66,7 @@ import com.byagowi.persiancalendar.global.systemLightTheme
 import com.byagowi.persiancalendar.global.userSetTheme
 import com.byagowi.persiancalendar.ui.common.AppDialog
 import com.byagowi.persiancalendar.ui.common.SwitchWithLabel
+import com.byagowi.persiancalendar.ui.settings.common.LiquidGlassWallpaperSection
 import com.byagowi.persiancalendar.ui.theme.Theme
 import com.byagowi.persiancalendar.ui.utils.AppBlendAlpha
 import com.byagowi.persiancalendar.ui.utils.SettingsHorizontalPaddingItem
@@ -118,7 +119,9 @@ fun ThemeDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        onDismissRequest()
+                        if (entry != Theme.LIQUID_GLASS) {
+                            onDismissRequest()
+                        }
                         context.preferences.edit {
                             putString(PREF_THEME, entry.key)
                             // Consider returning to system default as some sort of theme reset
@@ -139,6 +142,11 @@ fun ThemeDialog(
                     Text(stringResource(entry.title))
                     if (!showMore && entry == Theme.SYSTEM_DEFAULT && language.isPersianOrDari && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Text(
                         text = "براساس حالت تاریک و رنگ‌بندی پس‌زمینه دستگاه",
+                        color = LocalContentColor.current.copy(alpha = AppBlendAlpha),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (!showMore && entry == Theme.LIQUID_GLASS) Text(
+                        text = stringResource(R.string.theme_liquid_glass_desc),
                         color = LocalContentColor.current.copy(alpha = AppBlendAlpha),
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -206,6 +214,10 @@ fun ThemeDialog(
                 label = stringResource(R.string.bold_text),
                 checked = isBoldFont,
             ) { context.preferences.edit { putBoolean(PREF_BOLD_FONT, it) } }
+        }
+
+        if (userSetTheme == Theme.LIQUID_GLASS) {
+            LiquidGlassWallpaperSection(Modifier.padding(horizontal = 24.dp))
         }
 
         FontPicker(onDismissRequest, showMore)

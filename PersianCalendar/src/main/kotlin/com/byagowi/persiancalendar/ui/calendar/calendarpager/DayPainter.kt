@@ -20,6 +20,7 @@ import com.byagowi.persiancalendar.global.language
 import com.byagowi.persiancalendar.global.mainCalendarNumeral
 import com.byagowi.persiancalendar.global.showMoonInScorpio
 import com.byagowi.persiancalendar.ui.astronomy.Zodiac
+import com.byagowi.persiancalendar.ui.theme.resolveTypeface
 import com.byagowi.persiancalendar.ui.utils.dp
 import com.byagowi.persiancalendar.utils.getSecondaryCalendarNumeral
 import com.byagowi.persiancalendar.utils.isMoonInScorpio
@@ -49,9 +50,7 @@ class DayPainter private constructor(
         paints = Paints(
             resources, secondaryCalendar, min(width, height), colors, isWidget, isYearView,
             holidayCircleColor,
-            typeface = fontFile?.let(Typeface::createFromFile).let {
-                if (isBoldFont) Typeface.create(it, Typeface.BOLD) else it
-            },
+            typeface = resolveTypeface(context, fontFile, isBoldFont),
             isBoldFont = isBoldFont,
             zodiacFont = ResourcesCompat.getFont(
                 context,

@@ -43,6 +43,19 @@ class Widget1x1 : WidgetProvider()
 class Widget2x2 : WidgetProvider()
 class Widget4x1 : WidgetProvider()
 class Widget4x2 : WidgetProvider()
+class WidgetGlass : WidgetProvider() {
+    override fun onDeleted(context: Context?, appWidgetIds: IntArray?) {
+        if (context == null || appWidgetIds == null || appWidgetIds.isEmpty()) return
+        super.onDeleted(context, appWidgetIds)
+        context.preferences.edit {
+            appWidgetIds.forEach {
+                remove(PREF_WIDGET_GLASS_THEME + it)
+                remove(PREF_WIDGET_GLASS_LANGUAGE + it)
+                remove(PREF_WIDGET_TEXT_SCALE + it)
+            }
+        }
+    }
+}
 class WidgetMap : WidgetProvider()
 class WidgetMoon : WidgetProvider()
 class WidgetSunView : WidgetProvider()

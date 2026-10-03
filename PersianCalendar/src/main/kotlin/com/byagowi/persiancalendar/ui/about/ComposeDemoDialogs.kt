@@ -323,11 +323,12 @@ fun IconsDemoDialog(
         FlowRow {
             val fontFile = resolveFontFile()
             val isBoldFont = isBoldFont
+            val context = LocalContext.current
             repeat(62) {
                 val day = it / 2 + 1
                 Image(
                     bitmap = if (it % 2 == 0) ImageBitmap.imageResource(getDayIconResource(day))
-                    else createStatusIcon(day, fontFile, isBoldFont).asImageBitmap(),
+                    else createStatusIcon(day, fontFile, isBoldFont, context = context).asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
                         .padding(all = 4.dp)

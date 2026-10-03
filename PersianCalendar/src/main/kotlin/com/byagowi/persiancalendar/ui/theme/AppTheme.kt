@@ -65,20 +65,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.content.getSystemService
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.net.toUri
 import androidx.core.text.layoutDirection
 import com.byagowi.persiancalendar.BuildConfig
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.STORED_FONT_NAME
 import com.byagowi.persiancalendar.STORED_IMAGE_NAME
+import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_PROCESSED
+import com.byagowi.persiancalendar.STORED_LIQUID_GLASS_RAW
 import com.byagowi.persiancalendar.global.customFontName
 import com.byagowi.persiancalendar.global.customImageName
 import com.byagowi.persiancalendar.global.isBoldFont
 import com.byagowi.persiancalendar.global.isCyberpunk
 import com.byagowi.persiancalendar.global.isGradient
 import com.byagowi.persiancalendar.global.isHighTextContrastEnabled
+import com.byagowi.persiancalendar.global.isLiquidGlassDark
 import com.byagowi.persiancalendar.global.isRedHolidays
 import com.byagowi.persiancalendar.global.language
+import com.byagowi.persiancalendar.global.liquidGlassWallpaperVersion
 import com.byagowi.persiancalendar.global.systemDarkTheme
 import com.byagowi.persiancalendar.global.systemLightTheme
 import com.byagowi.persiancalendar.global.userSetTheme
@@ -123,8 +128,48 @@ fun AppTheme(content: @Composable () -> Unit) {
                     // Don't move this upper to top of the chain so .clipToBounds can be applied to it
                     .background(appBackground()),
             ) {
+                val theme = effectiveTheme()
+                if (theme == Theme.LIQUID_GLASS) {
+                    val version = liquidGlassWallpaperVersion
+                    val bitmap = remember(version) {
+                        val file = File(context.filesDir, STORED_LIQUID_GLASS_PROCESSED).takeIf { it.exists() }
+                            ?: File(context.filesDir, STORED_LIQUID_GLASS_RAW).takeIf { it.exists() }
+                        if (file != null) BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() else null
+                    }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(
+                                        0f to Color(0x25FFFFFF),
+                                        0.45f to Color(0x0AFFFFFF),
+                                        1f to Color.Transparent,
+                                        start = Offset(0f, 0f),
+                                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                                    ),
+                                ),
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFF243B55), Color(0xFF141E30)),
+                                    ),
+                                ),
+                        )
+                    }
+                }
                 val customImageName = customImageName
-                if (customImageName != null) {
+                if (customImageName != null && theme != Theme.LIQUID_GLASS) {
                     val bitmap = remember(customImageName) {
                         val file = File(context.filesDir, STORED_IMAGE_NAME).takeIf { it.exists() }
                             ?: return@remember null
@@ -153,6 +198,18 @@ fun AppTheme(content: @Composable () -> Unit) {
     }
 }
 
+val VazirmatnFamily = FontFamily(
+    Font(R.font.vazirmatn_thin, FontWeight.Thin),
+    Font(R.font.vazirmatn_extralight, FontWeight.ExtraLight),
+    Font(R.font.vazirmatn_light, FontWeight.Light),
+    Font(R.font.vazirmatn_regular, FontWeight.Normal),
+    Font(R.font.vazirmatn_medium, FontWeight.Medium),
+    Font(R.font.vazirmatn_semibold, FontWeight.SemiBold),
+    Font(R.font.vazirmatn_bold, FontWeight.Bold),
+    Font(R.font.vazirmatn_extrabold, FontWeight.ExtraBold),
+    Font(R.font.vazirmatn_black, FontWeight.Black),
+)
+
 fun resolveCustomFontPath(context: Context): File? =
     File(context.filesDir, STORED_FONT_NAME).takeIf { it.exists() }
 
@@ -163,64 +220,77 @@ fun resolveFontFile(): File? {
     return remember { resolveCustomFontPath(context) }
 }
 
-@Composable
-fun resolveAndroidCustomTypeface(): Typeface? {
-    val fontFile = resolveFontFile()
-    return remember(fontFile, isBoldFont) {
-        fontFile?.let(Typeface::createFromFile).let {
-            if (isBoldFont) Typeface.create(it, Typeface.BOLD) else it
-        }
-    }
+fun resolveDefaultTypeface(context: Context, isBoldFont: Boolean = false): Typeface? =
+    ResourcesCompat.getFont(
+        context,
+        if (isBoldFont) R.font.vazirmatn_bold else R.font.vazirmatn_regular,
+    )
+
+fun resolveTypeface(
+    context: Context,
+    fontFile: File? = null,
+    isBoldFont: Boolean = false,
+): Typeface? {
+    val base = fontFile?.let(Typeface::createFromFile) ?: resolveDefaultTypeface(context, isBoldFont)
+    return if (isBoldFont && fontFile != null && base != null) Typeface.create(base, Typeface.BOLD) else base
 }
 
 @Composable
+fun resolveAndroidCustomTypeface(): Typeface? {
+    val fontFile = resolveFontFile()
+    val context = LocalContext.current
+    return remember(fontFile, isBoldFont) {
+        resolveTypeface(context, fontFile, isBoldFont)
+    }
+}
+
+fun Typography.withFontFamily(fontFamily: FontFamily): Typography = copy(
+    displayLarge = displayLarge.copy(fontFamily = fontFamily),
+    displayMedium = displayMedium.copy(fontFamily = fontFamily),
+    displaySmall = displaySmall.copy(fontFamily = fontFamily),
+
+    headlineLarge = headlineLarge.copy(fontFamily = fontFamily),
+    headlineMedium = headlineMedium.copy(fontFamily = fontFamily),
+    headlineSmall = headlineSmall.copy(fontFamily = fontFamily),
+
+    titleLarge = titleLarge.copy(fontFamily = fontFamily),
+    titleMedium = titleMedium.copy(fontFamily = fontFamily),
+    titleSmall = titleSmall.copy(fontFamily = fontFamily),
+
+    bodyLarge = bodyLarge.copy(fontFamily = fontFamily),
+    bodyMedium = bodyMedium.copy(fontFamily = fontFamily),
+    bodySmall = bodySmall.copy(fontFamily = fontFamily),
+
+    labelLarge = labelLarge.copy(fontFamily = fontFamily),
+    labelMedium = labelMedium.copy(fontFamily = fontFamily),
+    labelSmall = labelSmall.copy(fontFamily = fontFamily),
+)
+
+@Composable
 fun resolveTypography(): Typography {
-    val result = resolveFontFile()?.let { fontFile ->
-        val typography = MaterialTheme.typography
-        val font = FontFamily(Font(fontFile))
-        typography.copy(
-            displayLarge = typography.displayLarge.copy(fontFamily = font),
-            displayMedium = typography.displayMedium.copy(fontFamily = font),
-            displaySmall = typography.displaySmall.copy(fontFamily = font),
+    val fontFamily = resolveFontFile()?.let { FontFamily(Font(it)) } ?: VazirmatnFamily
+    val typography = MaterialTheme.typography.withFontFamily(fontFamily)
+    return if (isBoldFont) typography.copy(
+        displayLarge = typography.displayLarge.copy(fontWeight = FontWeight.Bold),
+        displayMedium = typography.displayMedium.copy(fontWeight = FontWeight.Bold),
+        displaySmall = typography.displaySmall.copy(fontWeight = FontWeight.Bold),
 
-            headlineLarge = typography.headlineLarge.copy(fontFamily = font),
-            headlineMedium = typography.headlineMedium.copy(fontFamily = font),
-            headlineSmall = typography.headlineSmall.copy(fontFamily = font),
+        headlineLarge = typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+        headlineMedium = typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+        headlineSmall = typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
 
-            titleLarge = typography.titleLarge.copy(fontFamily = font),
-            titleMedium = typography.titleMedium.copy(fontFamily = font),
-            titleSmall = typography.titleSmall.copy(fontFamily = font),
+        titleLarge = typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+        titleMedium = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        titleSmall = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
 
-            bodyLarge = typography.bodyLarge.copy(fontFamily = font),
-            bodyMedium = typography.bodyMedium.copy(fontFamily = font),
-            bodySmall = typography.bodySmall.copy(fontFamily = font),
+        bodyLarge = typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+        bodyMedium = typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+        bodySmall = typography.bodySmall.copy(fontWeight = FontWeight.Bold),
 
-            labelLarge = typography.labelLarge.copy(fontFamily = font),
-            labelMedium = typography.labelMedium.copy(fontFamily = font),
-            labelSmall = typography.labelSmall.copy(fontFamily = font),
-        )
-    } ?: MaterialTheme.typography
-    return if (isBoldFont) result.copy(
-        displayLarge = result.displayLarge.copy(fontWeight = FontWeight.Bold),
-        displayMedium = result.displayMedium.copy(fontWeight = FontWeight.Bold),
-        displaySmall = result.displaySmall.copy(fontWeight = FontWeight.Bold),
-
-        headlineLarge = result.headlineLarge.copy(fontWeight = FontWeight.Bold),
-        headlineMedium = result.headlineMedium.copy(fontWeight = FontWeight.Bold),
-        headlineSmall = result.headlineSmall.copy(fontWeight = FontWeight.Bold),
-
-        titleLarge = result.titleLarge.copy(fontWeight = FontWeight.Bold),
-        titleMedium = result.titleMedium.copy(fontWeight = FontWeight.Bold),
-        titleSmall = result.titleSmall.copy(fontWeight = FontWeight.Bold),
-
-        bodyLarge = result.bodyLarge.copy(fontWeight = FontWeight.Bold),
-        bodyMedium = result.bodyMedium.copy(fontWeight = FontWeight.Bold),
-        bodySmall = result.bodySmall.copy(fontWeight = FontWeight.Bold),
-
-        labelLarge = result.labelLarge.copy(fontWeight = FontWeight.Bold),
-        labelMedium = result.labelMedium.copy(fontWeight = FontWeight.Bold),
-        labelSmall = result.labelSmall.copy(fontWeight = FontWeight.Bold),
-    ) else result
+        labelLarge = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+        labelMedium = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+        labelSmall = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+    ) else typography
 }
 
 // The app's theme after custom dark/light theme is applied
@@ -240,7 +310,7 @@ private fun isPowerSaveMode(context: Context): Boolean =
 @ReadOnlyComposable
 private fun appColorScheme(): ColorScheme {
     val theme = effectiveTheme()
-    val isDark = theme.isDark == true
+    val isDark = if (theme == Theme.LIQUID_GLASS) isLiquidGlassDark else theme.isDark == true
     var colorScheme = if (theme.isDynamicColors) {
         val context = LocalContext.current
         if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -253,8 +323,25 @@ private fun appColorScheme(): ColorScheme {
         surfaceContainerHigh = colorScheme.surfaceContainerLow,
         surfaceContainerHighest = colorScheme.surfaceContainer,
     )
+    if (theme == Theme.LIQUID_GLASS) {
+        val glassSurface = if (isLiquidGlassDark) Color(0x351F232B) else Color(0x40FFFFFF)
+        val glassContainer = if (isLiquidGlassDark) Color(0x45282D37) else Color(0x50FFFFFF)
+        colorScheme = colorScheme.copy(
+            surface = glassSurface,
+            surfaceContainer = glassContainer,
+            surfaceContainerLow = if (isLiquidGlassDark) Color(0x28161920) else Color(0x30FFFFFF),
+            surfaceContainerLowest = if (isLiquidGlassDark) Color(0x20101218) else Color(0x25FFFFFF),
+            surfaceContainerHigh = if (isLiquidGlassDark) Color(0x55323845) else Color(0x65FFFFFF),
+            surfaceContainerHighest = if (isLiquidGlassDark) Color(0x653E4555) else Color(0x75FFFFFF),
+            background = Color.Transparent,
+            onBackground = if (isLiquidGlassDark) Color.White else Color(0xFF1E2024),
+            outline = if (isLiquidGlassDark) Color(0x45FFFFFF) else Color(0x35000000),
+            outlineVariant = if (isLiquidGlassDark) Color(0x25FFFFFF) else Color(0x18000000),
+        )
+    }
 
-    val backgroundColor = if (theme.isDynamicColors) when (theme) {
+    val backgroundColor = if (theme == Theme.LIQUID_GLASS) Color.Transparent
+    else if (theme.isDynamicColors) when (theme) {
         Theme.LIGHT -> getResourcesColor(android.R.color.system_accent1_600)
         Theme.DARK -> getResourcesColor(android.R.color.system_neutral1_800)
         Theme.BLACK -> getResourcesColor(android.R.color.system_neutral1_1000)
@@ -292,6 +379,7 @@ private fun appShapes(): Shapes {
 fun needsScreenSurfaceDragHandle(): Boolean = when (effectiveTheme()) {
     Theme.BLACK -> true
     Theme.MODERN -> !isGradient
+    Theme.LIQUID_GLASS -> false
     else -> false
 }
 
@@ -348,6 +436,9 @@ fun isDynamicGrayscale(): Boolean =
 @Composable
 private fun appBackground(): Brush {
     val theme = effectiveTheme()
+    if (theme == Theme.LIQUID_GLASS) {
+        return Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+    }
     val backgroundGradientStart by animateColor(
         if (!isGradient) MaterialTheme.colorScheme.background
         else if (theme.isDynamicColors) getResourcesColor(

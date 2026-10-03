@@ -36,7 +36,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif"
-            android:gravity="center" />
+            android:gravity="center"
+            android:textLocale="en" />
 
         <TextView
             android:id="@+id/date_2x2"

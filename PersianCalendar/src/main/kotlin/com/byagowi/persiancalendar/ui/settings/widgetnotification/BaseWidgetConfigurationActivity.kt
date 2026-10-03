@@ -65,11 +65,13 @@ abstract class BaseWidgetConfigurationActivity : BaseConfigurationActivity(
         defaultValue
     }
 
+    open val defaultWidgetSize: DpSize get() = DpSize(320.dp, 160.dp)
+
     @Composable
     final override fun Header() {
         val size = AppWidgetManager.getInstance(this)?.getWidgetSize(
             LocalResources.current, appWidgetId,
-        ) ?: DpSize(100.dp, 100.dp)
+        ) ?: defaultWidgetSize
         Box(
             if (isLandscape()) {
                 Modifier
